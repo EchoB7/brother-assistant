@@ -8,6 +8,7 @@ import {
   Cloud,
   Globe,
   KeyRound,
+  Languages,
   Link as LinkIcon,
   Plus,
   RefreshCw,
@@ -16,6 +17,7 @@ import {
   Zap,
 } from "lucide-react";
 import { PROVIDER_SPECS, getProviderModels, getProviderSpec } from "../modelCatalog";
+import { useI18n, LOCALE_LABELS, type Locale } from "../i18n";
 import { invokeCommand } from "../platform/host";
 import type { DeviceFlowStart, ProviderAccountSummary, SettingsState } from "../types";
 
@@ -39,9 +41,14 @@ function SparklesFallback(props: ComponentProps<typeof Zap>) {
   return <Zap {...props} />;
 }
 
-function formatDate(value: number) {
+function formatDate(value: number, locale: string) {
   if (!value) return "-";
-  return new Date(value * 1000).toLocaleDateString("pt-BR");
+  const localeMap: Record<string, string> = {
+    "en": "en-US", "pt-br": "pt-BR", "es": "es-ES", "ru": "ru-RU",
+    "ja": "ja-JP", "zh": "zh-CN", "ar": "ar-SA", "de": "de-DE",
+    "fr": "fr-FR", "it": "it-IT", "hi": "hi-IN",
+  };
+  return new Date(value * 1000).toLocaleDateString(localeMap[locale] || "en-US");
 }
 
 function tokenLabel(providerName: string) {
@@ -72,7 +79,7 @@ function providerSupportsAccounts(providerName: string) {
 }
 
 function maskSecret(value: string) {
-  if (!value) return "Sem token";
+  if (!value) return "—";
   if (value.length <= 12) return `${value.slice(0, 4)}...${value.slice(-2)}`;
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
@@ -84,18 +91,8 @@ function defaultAccountName(providerName: string, accounts: ProviderAccountSumma
   return `${providerName}${accounts.length + 1}`;
 }
 
-function providerRotationLabel(providerName: string) {
-  switch (providerName) {
-    case "google":
-      return "O app alterna automaticamente entre as chaves do Gemini quando houver limite 429.";
-    case "github":
-      return "Você pode manter vários tokens do GitHub Models e trocar qual fica ativo.";
-    default:
-      return "O app usa a conta ativa e faz rotação automática quando encontrar limite 429.";
-  }
-}
-
 export default function Settings({ onClose }: SettingsProps) {
+  const { t, locale, setLocale } = useI18n();
   const [config, setConfig] = useState<SettingsState | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -199,11 +196,11 @@ export default function Settings({ onClose }: SettingsProps) {
       const updated = await invokeCommand<SettingsState>("set_settings_state", { update: config });
       setConfig(updated);
       setSaved(true);
-      setStatusMessage("Configurações salvas.");
+      setStatusMessage(t("configSaved"));
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       console.error(err);
-      setStatusMessage("Falha ao salvar configurações.");
+      setStatusMessage(t("configSaveFailed"));
     }
     setSaving(false);
   }
@@ -213,10 +210,10 @@ export default function Settings({ onClose }: SettingsProps) {
     try {
       const flow = await invokeCommand<DeviceFlowStart>("start_copilot_device_flow");
       setDeviceFlow(flow);
-      setStatusMessage("Autorize a conta no GitHub e depois clique em Concluir login.");
+      setStatusMessage(t("authorizeGitHub"));
     } catch (error) {
       console.error(error);
-      setStatusMessage("Não foi possível iniciar a autenticação do Copilot.");
+      setStatusMessage(t("authFailed"));
     }
     setAddingAccount(false);
   }
@@ -232,7 +229,7 @@ export default function Settings({ onClose }: SettingsProps) {
       });
       setConfig(updated);
       setDeviceFlow(null);
-      setStatusMessage("Conta Copilot adicionada com sucesso.");
+      setStatusMessage(t("copilotAdded"));
     } catch (error) {
       console.error(error);
       setStatusMessage(String(error));
@@ -244,10 +241,10 @@ export default function Settings({ onClose }: SettingsProps) {
     try {
       const updated = await invokeCommand<SettingsState>("set_active_copilot_account", { username });
       setConfig(updated);
-      setStatusMessage(`Conta ativa: ${username}`);
+      setStatusMessage(`${t("accountActive")} ${username}`);
     } catch (error) {
       console.error(error);
-      setStatusMessage("Falha ao trocar a conta Copilot.");
+      setStatusMessage(t("copilotSwitchFailed"));
     }
   }
 
@@ -255,10 +252,10 @@ export default function Settings({ onClose }: SettingsProps) {
     try {
       const updated = await invokeCommand<SettingsState>("remove_copilot_account", { username });
       setConfig(updated);
-      setStatusMessage(`Conta removida: ${username}`);
+      setStatusMessage(`${t("accountRemoved")} ${username}`);
     } catch (error) {
       console.error(error);
-      setStatusMessage("Falha ao remover a conta Copilot.");
+      setStatusMessage(t("copilotRemoveFailed"));
     }
   }
 
@@ -267,10 +264,10 @@ export default function Settings({ onClose }: SettingsProps) {
     try {
       const updated = await invokeCommand<SettingsState>("import_legacy_copilot_agent_config");
       setConfig(updated);
-      setStatusMessage("Configurações e contas importadas do copilot-agent.");
+      setStatusMessage(t("importSuccess"));
     } catch (error) {
       console.error(error);
-      setStatusMessage("Não foi possível importar de ~/.config/copilot-agent.");
+      setStatusMessage(t("importFailed"));
     }
     setSaving(false);
   }
@@ -288,10 +285,10 @@ export default function Settings({ onClose }: SettingsProps) {
       setConfig(updated);
       setNewAccountName(defaultAccountName(config.provider, updated.provider_accounts?.[config.provider] ?? []));
       setNewAccountKey("");
-      setStatusMessage(`Conta adicionada em ${selectedProvider.label}.`);
+      setStatusMessage(`${t("accountAddedIn")} ${selectedProvider.label}.`);
     } catch (error) {
       console.error(error);
-      setStatusMessage("Não foi possível adicionar a conta do provedor.");
+      setStatusMessage(t("providerAddFailed"));
     }
     setProviderActionBusy(false);
   }
@@ -305,10 +302,10 @@ export default function Settings({ onClose }: SettingsProps) {
         account_name: accountName,
       });
       setConfig(updated);
-      setStatusMessage(`Conta ativa: ${accountName}`);
+      setStatusMessage(`${t("accountActive")} ${accountName}`);
     } catch (error) {
       console.error(error);
-      setStatusMessage("Falha ao ativar a conta do provedor.");
+      setStatusMessage(t("providerActivateFailed"));
     }
     setProviderActionBusy(false);
   }
@@ -322,10 +319,10 @@ export default function Settings({ onClose }: SettingsProps) {
         account_name: accountName,
       });
       setConfig(updated);
-      setStatusMessage(`Conta removida: ${accountName}`);
+      setStatusMessage(`${t("accountRemoved")} ${accountName}`);
     } catch (error) {
       console.error(error);
-      setStatusMessage("Falha ao remover a conta do provedor.");
+      setStatusMessage(t("providerRemoveFailed"));
     }
     setProviderActionBusy(false);
   }
@@ -333,7 +330,7 @@ export default function Settings({ onClose }: SettingsProps) {
   if (!config) {
     return (
       <div className="flex h-full items-center justify-center bg-gradient-to-b from-white/70 to-slate-50/90 dark:from-gray-900/70 dark:to-gray-800/90 px-6 text-sm text-slate-500 dark:text-gray-400">
-        Carregando configurações...
+        {t("loadingSettings")}
       </div>
     );
   }
@@ -351,15 +348,15 @@ export default function Settings({ onClose }: SettingsProps) {
               className="inline-flex items-center gap-2 rounded-xl bg-slate-100/80 dark:bg-gray-700/80 px-3 py-2 text-sm text-slate-500 dark:text-gray-400 transition-colors hover:bg-slate-200/80 dark:hover:bg-gray-600/80 hover:text-slate-800 dark:hover:text-white"
             >
               <ArrowLeft className="w-4 h-4" />
-              Voltar ao chat
+              {t("backToChat")}
             </button>
             <div className="rounded-full border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-gray-400">
-              Brother Control
+              {t("brotherControl")}
             </div>
           </div>
 
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">Configurações</h2>
-          <p className="text-sm text-slate-500 dark:text-gray-400 mb-0">Configure provedores, contas do Copilot e rotação automática.</p>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-1">{t("settings")}</h2>
+          <p className="text-sm text-slate-500 dark:text-gray-400 mb-0">{t("settingsDescription")}</p>
         </div>
 
         <div className="mb-5 rounded-[24px] border border-white/70 dark:border-gray-700 bg-white/85 dark:bg-gray-800/85 p-4 shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl">
@@ -367,13 +364,13 @@ export default function Settings({ onClose }: SettingsProps) {
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-gray-200">
                 <Bot className="w-4 h-4 text-slate-500 dark:text-gray-400" />
-                Modo agente
+                {t("agentMode")}
               </div>
               <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
-                Detecta pedidos operacionais e tenta executar ferramentas locais antes de usar o chat normal.
+                {t("agentModeDesc")}
               </p>
               <p className="mt-2 text-[11px] text-slate-400 dark:text-gray-500">
-                Ações iniciais: criar HTML simples e abrir no navegador, abrir URL ou arquivo HTML e trocar wallpaper no GNOME quando houver caminho da imagem.
+                {t("agentModeActions")}
               </p>
             </div>
 
@@ -396,10 +393,10 @@ export default function Settings({ onClose }: SettingsProps) {
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-gray-200">
                 <Zap className="w-4 h-4 text-slate-500 dark:text-gray-400" />
-                Iniciar com o sistema
+                {t("startWithSystem")}
               </div>
               <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
-                O Brother abre automaticamente ao fazer login no computador.
+                {t("startWithSystemDesc")}
               </p>
             </div>
 
@@ -422,16 +419,36 @@ export default function Settings({ onClose }: SettingsProps) {
           </div>
         </div>
 
+        <div className="mb-5 rounded-[24px] border border-white/70 dark:border-gray-700 bg-white/85 dark:bg-gray-800/85 p-4 shadow-[0_16px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-gray-200">
+                <Languages className="w-4 h-4 text-slate-500 dark:text-gray-400" />
+                {t("language")}
+              </div>
+            </div>
+            <select
+              value={locale}
+              onChange={(e) => setLocale(e.target.value as Locale)}
+              className="rounded-xl border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-sm text-slate-700 dark:text-gray-300 outline-none"
+            >
+              {(Object.keys(LOCALE_LABELS) as Locale[]).map((loc) => (
+                <option key={loc} value={loc}>{LOCALE_LABELS[loc]}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
         <button
           onClick={handleImportLegacyConfig}
           disabled={saving}
           className="mb-5 inline-flex w-full items-center justify-center gap-2 rounded-[22px] border border-white/70 dark:border-gray-700 bg-white/85 dark:bg-gray-800/85 px-3 py-3 text-sm font-semibold text-slate-700 dark:text-gray-300 shadow-[0_12px_30px_rgba(15,23,42,0.06)] transition-colors hover:bg-slate-50 dark:hover:bg-gray-700 disabled:opacity-50"
         >
           <RefreshCw className={`w-4 h-4 ${saving ? "animate-spin" : ""}`} />
-          Importar de ~/.config/copilot-agent
+          {t("importLegacy")}
         </button>
 
-        <label className="text-sm font-semibold text-slate-700 dark:text-gray-300 mb-2 block">Provedor</label>
+        <label className="text-sm font-semibold text-slate-700 dark:text-gray-300 mb-2 block">{t("provider")}</label>
         <div className="grid gap-2 mb-5 max-h-72 overflow-y-auto pr-1 scrollbar-thin">
           {PROVIDER_SPECS.map((p) => {
             const Icon = PROVIDER_ICONS[p.name] ?? Shield;
@@ -450,12 +467,12 @@ export default function Settings({ onClose }: SettingsProps) {
                 <Icon className={`w-5 h-5 ${isActive ? "text-blue-600 dark:text-blue-400" : "text-slate-500 dark:text-gray-400"}`} />
                 <div>
                   <div className={`text-sm font-medium ${isActive ? "text-blue-700 dark:text-blue-400" : "text-slate-700 dark:text-gray-300"}`}>{p.label}</div>
-                  <div className="text-[11px] text-slate-500 dark:text-gray-400">{p.summary}</div>
+                  <div className="text-[11px] text-slate-500 dark:text-gray-400">{t(p.summary)}</div>
                   <div className="text-[10px] text-slate-400 dark:text-gray-500">{p.endpoint}</div>
                 </div>
                 {providerSupportsAccounts(p.name) && accountCount > 0 && (
                   <span className={`ml-auto rounded-full px-2 py-1 text-[10px] font-semibold ${isActive ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"}`}>
-                    {accountCount} contas
+                    {accountCount} {t("accounts")}
                   </span>
                 )}
               </button>
@@ -465,10 +482,10 @@ export default function Settings({ onClose }: SettingsProps) {
 
         <div className="mb-5 rounded-[22px] border border-white/70 dark:border-gray-700 bg-white/85 dark:bg-gray-800/85 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-gray-400 mb-1">
-            <LinkIcon className="w-3.5 h-3.5" /> Endpoint
+            <LinkIcon className="w-3.5 h-3.5" /> {t("endpoint")}
           </div>
           <div className="text-xs text-slate-500 dark:text-gray-400 break-all">
-            {config.provider === "custom" ? config.custom_api_url || "Defina uma URL custom." : selectedProvider.endpoint}
+            {config.provider === "custom" ? config.custom_api_url || t("defineCustomUrl") : selectedProvider.endpoint}
           </div>
         </div>
 
@@ -476,8 +493,8 @@ export default function Settings({ onClose }: SettingsProps) {
           <div className="mb-6 rounded-[24px] border border-white/70 dark:border-gray-700 bg-white/85 dark:bg-gray-800/85 p-4 shadow-[0_14px_34px_rgba(15,23,42,0.06)] backdrop-blur-xl">
             <div className="flex items-center justify-between gap-3 mb-3">
               <div>
-                <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-200">Contas Copilot</h3>
-                <p className="text-xs text-slate-500 dark:text-gray-400">Adicione várias contas e o app rotaciona automaticamente quando encontrar 429.</p>
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-200">{t("copilotAccounts")}</h3>
+                <p className="text-xs text-slate-500 dark:text-gray-400">{t("copilotAccountsDescription")}</p>
               </div>
               <button
                 onClick={handleStartAccountFlow}
@@ -485,14 +502,14 @@ export default function Settings({ onClose }: SettingsProps) {
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 px-3 py-2 text-xs font-semibold text-white transition-all hover:from-blue-600 hover:to-purple-700 disabled:opacity-50"
               >
                 {addingAccount ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                Adicionar conta
+                {t("addAccount")}
               </button>
             </div>
 
             {deviceFlow && (
               <div className="mb-4 rounded-[22px] border border-blue-200 bg-[linear-gradient(135deg,rgba(239,246,255,0.96),rgba(245,243,255,0.96))] p-3">
-                <div className="text-xs font-semibold text-blue-700 mb-1">Device Flow GitHub</div>
-                <div className="text-xs text-slate-700 mb-2">Abra o link abaixo, digite o código e depois conclua o login.</div>
+                <div className="text-xs font-semibold text-blue-700 mb-1">{t("deviceFlowGitHub")}</div>
+                <div className="text-xs text-slate-700 mb-2">{t("deviceFlowInstructions")}</div>
                 <a href={deviceFlow.verification_uri} target="_blank" rel="noreferrer" className="text-xs text-blue-700 underline break-all block mb-2">
                   {deviceFlow.verification_uri}
                 </a>
@@ -506,7 +523,7 @@ export default function Settings({ onClose }: SettingsProps) {
                     className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
                   >
                     {addingAccount ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                    Concluir login
+                    {t("completeLogin")}
                   </button>
                 </div>
               </div>
@@ -514,7 +531,7 @@ export default function Settings({ onClose }: SettingsProps) {
 
             <div className="space-y-2">
               {config.copilot_accounts.length === 0 ? (
-                <div className="text-xs text-slate-500">Nenhuma conta conectada.</div>
+                <div className="text-xs text-slate-500">{t("noAccountConnected")}</div>
               ) : (
                 config.copilot_accounts.map((account) => (
                   <div key={account.username} className="rounded-[22px] border border-slate-200/80 dark:border-gray-600 bg-slate-50/80 dark:bg-gray-700/80 p-3">
@@ -522,16 +539,16 @@ export default function Settings({ onClose }: SettingsProps) {
                       <div>
                         <div className="text-sm font-semibold text-slate-800 dark:text-gray-200 flex items-center gap-2">
                           {account.username}
-                          {account.active && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400">ativa</span>}
+                          {account.active && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400">{t("active")}</span>}
                         </div>
                         <div className="text-[11px] text-slate-500 dark:text-gray-400 mt-1">
-                          Adicionada em {formatDate(account.added_at)} | Requests {account.requests} | Tokens {account.total_tokens.toLocaleString("pt-BR")}
+                          {t("addedOn")} {formatDate(account.added_at, locale)} | {t("requests")} {account.requests} | {t("tokens")} {account.total_tokens.toLocaleString()}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {!account.active && (
                           <button onClick={() => handleActivateAccount(account.username)} className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] text-white hover:bg-slate-800">
-                            Ativar
+                            {t("activate")}
                           </button>
                         )}
                         <button onClick={() => handleRemoveAccount(account.username)} className="p-2 rounded-lg text-red-500 hover:bg-red-50">
@@ -548,13 +565,13 @@ export default function Settings({ onClose }: SettingsProps) {
           <div className="mb-6 space-y-4 rounded-[24px] border border-white/70 dark:border-gray-700 bg-white/85 dark:bg-gray-800/85 p-4 shadow-[0_14px_34px_rgba(15,23,42,0.06)] backdrop-blur-xl">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-200">Tokens e contas do provedor</h3>
-                <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">{providerRotationLabel(config.provider)}</p>
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-gray-200">{t("providerTokens")}</h3>
+                <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">{t("copilotAccountsDescription")}</p>
               </div>
               <div className="rounded-2xl bg-slate-100 dark:bg-gray-700 px-3 py-2 text-right">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-slate-400 dark:text-gray-500 font-semibold">Ativa</div>
+                <div className="text-[10px] uppercase tracking-[0.14em] text-slate-400 dark:text-gray-500 font-semibold">{t("activeLabel")}</div>
                 <div className="text-xs font-semibold text-slate-700 dark:text-gray-300">
-                  {providerAccounts.find((account) => account.active)?.name ?? "Nenhuma"}
+                  {providerAccounts.find((account) => account.active)?.name ?? t("noneLabel")}
                 </div>
               </div>
             </div>
@@ -584,14 +601,14 @@ export default function Settings({ onClose }: SettingsProps) {
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-slate-900 to-slate-700 px-3 py-3 text-sm font-semibold text-white transition-colors hover:from-slate-800 hover:to-slate-700 disabled:opacity-50"
                 >
                   {providerActionBusy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                  Adicionar token
+                  {t("addToken")}
                 </button>
               </div>
             </div>
 
             <div className="max-h-80 overflow-y-auto rounded-[22px] border border-slate-200 dark:border-gray-600 bg-white/95 dark:bg-gray-800/95">
               {providerAccounts.length === 0 ? (
-                <div className="px-4 py-5 text-xs text-slate-500 dark:text-gray-400">Nenhum token configurado para este provedor.</div>
+                <div className="px-4 py-5 text-xs text-slate-500 dark:text-gray-400">{t("noTokenConfigured")}</div>
               ) : (
                 <div className="divide-y divide-slate-100 dark:divide-gray-700">
                   {providerAccounts.map((account) => (
@@ -599,11 +616,11 @@ export default function Settings({ onClose }: SettingsProps) {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-semibold text-slate-800 dark:text-gray-200">{account.name}</span>
-                          {account.active && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400">ativa</span>}
+                          {account.active && <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-400">{t("active")}</span>}
                         </div>
                         <div className="mt-1 text-[11px] text-slate-500 dark:text-gray-400 font-mono">{maskSecret(account.api_key)}</div>
                         <div className="mt-1 text-[11px] text-slate-400 dark:text-gray-500">
-                          Requests {account.requests} | Tokens {account.total_tokens.toLocaleString("pt-BR")}
+                          {t("requests")} {account.requests} | {t("tokens")} {account.total_tokens.toLocaleString()}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -614,7 +631,7 @@ export default function Settings({ onClose }: SettingsProps) {
                             className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] text-white hover:bg-slate-800 disabled:opacity-50"
                           >
                             <ArrowRightLeft className="w-3.5 h-3.5" />
-                            Ativar
+                            {t("activate")}
                           </button>
                         )}
                         <button
@@ -631,7 +648,7 @@ export default function Settings({ onClose }: SettingsProps) {
               )}
             </div>
 
-            <p className="text-xs text-slate-400 dark:text-gray-500">{selectedProvider.helpText}</p>
+            <p className="text-xs text-slate-400 dark:text-gray-500">{t(selectedProvider.helpText)}</p>
           </div>
         ) : (
           <>
@@ -650,23 +667,23 @@ export default function Settings({ onClose }: SettingsProps) {
                 className="w-full rounded-[22px] border-2 border-slate-200 dark:border-gray-600 bg-white/95 dark:bg-gray-800 py-3 pl-10 pr-3 text-sm font-mono dark:text-gray-200 outline-none transition-colors focus:border-blue-500"
               />
             </div>
-            <p className="text-xs text-slate-400 dark:text-gray-500 mb-5">{selectedProvider.helpText}</p>
+            <p className="text-xs text-slate-400 dark:text-gray-500 mb-5">{t(selectedProvider.helpText)}</p>
           </>
         )}
 
-        <label className="text-sm font-semibold text-slate-700 dark:text-gray-300 mb-2 block">Modelo</label>
+        <label className="text-sm font-semibold text-slate-700 dark:text-gray-300 mb-2 block">{t("model")}</label>
         {selectedProvider.models.length > 0 ? (
           <div className="mb-5 space-y-2">
             <input
               type="text"
               value={modelQuery}
               onChange={(event) => setModelQuery(event.target.value)}
-              placeholder="Buscar por nome, família ou tag..."
+              placeholder={t("searchModelPlaceholder")}
               className="w-full rounded-[22px] border-2 border-slate-200 dark:border-gray-600 bg-white/95 dark:bg-gray-800 px-3 py-3 text-sm dark:text-gray-200 outline-none transition-colors focus:border-blue-500"
             />
             <div className="max-h-80 overflow-y-auto rounded-[22px] border border-slate-200 dark:border-gray-600 bg-white/95 dark:bg-gray-800/95 p-2 scrollbar-thin shadow-[0_10px_24px_rgba(15,23,42,0.05)]">
               {filteredProviderModels.length === 0 ? (
-                <div className="px-3 py-3 text-xs text-slate-500 dark:text-gray-400">Nenhum modelo encontrado.</div>
+                <div className="px-3 py-3 text-xs text-slate-500 dark:text-gray-400">{t("noModelFound")}</div>
               ) : (
                 <div className="space-y-1">
                   {filteredProviderModels.map((model) => {
@@ -710,14 +727,14 @@ export default function Settings({ onClose }: SettingsProps) {
             type="text"
             value={config.model}
             onChange={(e) => { setConfig((p) => p ? ({ ...p, model: e.target.value }) : p); setSaved(false); }}
-            placeholder="nome-do-modelo"
+            placeholder="model-name"
             className="mb-5 w-full rounded-[22px] border-2 border-slate-200 dark:border-gray-600 bg-white/95 dark:bg-gray-800 p-3 text-sm dark:text-gray-200 outline-none transition-colors focus:border-blue-500"
           />
         )}
 
         {config.provider === "custom" && (
           <>
-            <label className="text-sm font-semibold text-slate-700 dark:text-gray-300 mb-2 block">URL da API</label>
+            <label className="text-sm font-semibold text-slate-700 dark:text-gray-300 mb-2 block">{t("apiUrl")}</label>
             <input
               type="text"
               value={config.custom_api_url}
@@ -745,10 +762,10 @@ export default function Settings({ onClose }: SettingsProps) {
         >
           {saved ? (
             <>
-              <Check className="w-4 h-4" /> Salvo!
+              <Check className="w-4 h-4" /> {t("savedLabel")}
             </>
           ) : (
-            "Salvar configurações"
+            t("saveSettings")
           )}
         </button>
       </div>

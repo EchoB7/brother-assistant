@@ -1,6 +1,7 @@
 import { Bot, Menu, MessageSquarePlus, Minus, Moon, Settings, SlidersHorizontal, Square, Sun, X } from "lucide-react";
 import { controlWindow } from "../platform/host";
 import { useCallback } from "react";
+import { useI18n } from "../i18n";
 
 interface TopBarProps {
   onSettingsClick?: () => void;
@@ -31,6 +32,7 @@ export default function TopBar({
   darkMode,
   onToggleDarkMode,
 }: TopBarProps) {
+  const { t } = useI18n();
   const handleDragStart = useCallback((e: React.MouseEvent) => {
     // Only drag when clicking directly on the bar, not on buttons
     if ((e.target as HTMLElement).closest('button')) return;
@@ -50,7 +52,7 @@ export default function TopBar({
             type="button"
             onClick={onToggleSidebar}
             className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${darkMode ? "hover:bg-gray-700" : "hover:bg-slate-200/60"}`}
-            title="Conversas"
+            title={t("conversations")}
           >
             <Menu className={`w-3.5 h-3.5 ${darkMode ? "text-gray-400" : "text-slate-500"}`} />
           </button>
@@ -58,7 +60,7 @@ export default function TopBar({
             type="button"
             onClick={onNewConversation}
             className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${darkMode ? "hover:bg-gray-700" : "hover:bg-slate-200/60"}`}
-            title="Nova conversa"
+            title={t("newConversation")}
           >
             <MessageSquarePlus className={`w-3.5 h-3.5 ${darkMode ? "text-gray-400" : "text-slate-500"}`} />
           </button>
@@ -70,7 +72,7 @@ export default function TopBar({
           <h2 className={`text-sm font-bold tracking-tight ${darkMode ? "text-white" : "text-slate-900"}`}>Brother</h2>
         </div>
         <div className="flex items-center gap-0.5">
-          <button type="button" onClick={onToggleDarkMode} className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${darkMode ? "hover:bg-gray-700" : "hover:bg-slate-200/60"}`} title={darkMode ? "Modo claro" : "Modo escuro"}>
+          <button type="button" onClick={onToggleDarkMode} className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${darkMode ? "hover:bg-gray-700" : "hover:bg-slate-200/60"}`} title={darkMode ? t("lightMode") : t("darkMode")}>
             {darkMode ? <Sun className="w-3.5 h-3.5 text-yellow-400" /> : <Moon className="w-3.5 h-3.5 text-slate-500" />}
           </button>
           <button type="button" onClick={onSettingsClick} className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors ${darkMode ? "hover:bg-gray-700" : "hover:bg-slate-200/60"}`}>
@@ -102,7 +104,7 @@ export default function TopBar({
           }`}
         >
           <Bot className="h-3.5 w-3.5 shrink-0" />
-          <span className="text-xs font-semibold">{agentModeEnabled ? "Agente" : "Chat"}</span>
+          <span className="text-xs font-semibold">{agentModeEnabled ? t("agent") : t("chat")}</span>
         </button>
         {showQuickConfigButton && (
           <button

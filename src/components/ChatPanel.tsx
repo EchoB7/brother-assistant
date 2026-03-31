@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Check, Copy, RefreshCw, ThumbsDown, ThumbsUp, User } from "lucide-react";
 import MarkdownRenderer from "./MarkdownRenderer";
+import { useI18n } from "../i18n";
 import type { Message } from "../types";
 
 interface ChatPanelProps {
@@ -24,6 +25,7 @@ function AssistantAvatar() {
 
 function CopyMessageButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
+  const { t } = useI18n();
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
@@ -35,7 +37,7 @@ function CopyMessageButton({ text }: { text: string }) {
     <button
       onClick={handleCopy}
       className="flex items-center gap-1 rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-      title="Copiar mensagem"
+      title={t("copyMessage")}
     >
       {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
     </button>
@@ -44,19 +46,20 @@ function CopyMessageButton({ text }: { text: string }) {
 
 function FeedbackButtons() {
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+  const { t } = useI18n();
   return (
     <>
       <button
         onClick={() => setFeedback(feedback === "up" ? null : "up")}
         className={`rounded-md p-1 transition-colors ${feedback === "up" ? "text-green-500" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300"}`}
-        title="Boa resposta"
+        title={t("goodResponse")}
       >
         <ThumbsUp className="h-3.5 w-3.5" />
       </button>
       <button
         onClick={() => setFeedback(feedback === "down" ? null : "down")}
         className={`rounded-md p-1 transition-colors ${feedback === "down" ? "text-red-500" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300"}`}
-        title="Resposta ruim"
+        title={t("badResponse")}
       >
         <ThumbsDown className="h-3.5 w-3.5" />
       </button>
@@ -68,6 +71,7 @@ export default function ChatPanel({ messages, isTyping, onRegenerate }: ChatPane
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
+  const { t, locale } = useI18n();
 
   useEffect(() => {
     if (!shouldAutoScrollRef.current) return;
@@ -96,7 +100,7 @@ export default function ChatPanel({ messages, isTyping, onRegenerate }: ChatPane
       {messages.map((msg, idx) => {
         const isAssistant = msg.role === "assistant";
         const timestamp = msg.timestamp
-          ? new Date(msg.timestamp).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+          ? new Date(msg.timestamp).toLocaleTimeString(locale === "en" ? "en-US" : locale === "es" ? "es" : "pt-BR", { hour: "2-digit", minute: "2-digit" })
           : null;
         const isLastAssistant = idx === lastAssistantIndex;
         const showActions = isAssistant && msg.content.length > 0 && !isTyping;
@@ -117,7 +121,7 @@ export default function ChatPanel({ messages, isTyping, onRegenerate }: ChatPane
             )}
             <div className="flex-1 min-w-0">
               <div className="mb-2 flex items-center gap-2">
-                <span className="font-bold text-sm text-slate-900 dark:text-gray-100">{isAssistant ? "Brother" : "Você"}</span>
+                <span className="font-bold text-sm text-slate-900 dark:text-gray-100">{isAssistant ? "Brother" : t("you")}</span>
                 {timestamp && <span className="text-xs font-medium text-slate-400 dark:text-gray-500">{timestamp}</span>}
               </div>
 

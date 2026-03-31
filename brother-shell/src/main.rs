@@ -1102,12 +1102,13 @@ fn main() {
 	let _ = tray_menu.append(&quit_item);
 
 	let tray_icon_data = tray_icon::Icon::from_rgba(icon_rgba, iw, ih).expect("falha ao criar ícone da tray");
-	let _tray = TrayIconBuilder::new()
+	let tray = TrayIconBuilder::new()
 		.with_icon(tray_icon_data)
 		.with_menu(Box::new(tray_menu))
 		.with_tooltip("Brother Assistant")
 		.build()
 		.expect("falha ao criar system tray");
+	let tray = std::cell::RefCell::new(Some(tray));
 
 	// Atalho global: Super + Shift + B
 	let hotkey_manager = GlobalHotKeyManager::new().ok();
@@ -1125,6 +1126,8 @@ fn main() {
 				window.set_visible(true);
 				window.set_focus();
 			} else if event.id() == &quit_item_id {
+				// Destruir tray antes de sair para remover o ícone da bandeja
+				tray.borrow_mut().take();
 				*control_flow = ControlFlow::Exit;
 			}
 		}
@@ -1163,6 +1166,8 @@ fn main() {
 				event: WindowEvent::CloseRequested,
 				..
 			} => {
+				// Destruir tray antes de sair para remover o ícone da bandeja
+				tray.borrow_mut().take();
 				*control_flow = ControlFlow::Exit;
 			}
 			_ => {}

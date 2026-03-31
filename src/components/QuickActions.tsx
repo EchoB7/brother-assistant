@@ -1,4 +1,5 @@
 import { Compass, Lightbulb, Sparkles, BookOpen, type LucideIcon } from "lucide-react";
+import { useI18n } from "../i18n";
 
 interface PromptCardProps {
   icon: LucideIcon;
@@ -28,14 +29,16 @@ interface QuickActionsProps {
   onAction: (action: string) => void;
 }
 
-const prompts = [
-  { icon: Compass, text: "Onde as pessoas viajam para experiências culinárias?", gradient: "from-blue-500 to-cyan-500" },
-  { icon: Lightbulb, text: "Me ajude a entender computação quântica", gradient: "from-amber-500 to-orange-500" },
-  { icon: Sparkles, text: "Estou procurando móveis artesanais para meu apartamento", gradient: "from-purple-500 to-pink-500" },
-  { icon: BookOpen, text: "Crie um plano de refeições para as próximas duas semanas", gradient: "from-green-500 to-emerald-500" },
-];
-
 export default function QuickActions({ onAction }: QuickActionsProps) {
+  const { t } = useI18n();
+
+  const prompts = [
+    { icon: Compass, text: t("prompt1"), gradient: "from-blue-500 to-cyan-500" },
+    { icon: Lightbulb, text: t("prompt2"), gradient: "from-amber-500 to-orange-500" },
+    { icon: Sparkles, text: t("prompt3"), gradient: "from-purple-500 to-pink-500" },
+    { icon: BookOpen, text: t("prompt4"), gradient: "from-green-500 to-emerald-500" },
+  ];
+
   return (
     <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto p-5">
       <div className="py-6 text-center">
@@ -47,8 +50,8 @@ export default function QuickActions({ onAction }: QuickActionsProps) {
             </svg>
           </div>
         </div>
-        <h3 className="mt-4 text-lg font-bold text-slate-900 dark:text-white">Como posso ajudar você hoje?</h3>
-        <p className="mt-1 text-xs font-medium text-slate-500 dark:text-gray-400">Pergunte qualquer coisa ou experimente estas sugestões</p>
+        <h3 className="mt-4 text-lg font-bold text-slate-900 dark:text-white">{t("howCanIHelp")}</h3>
+        <p className="mt-1 text-xs font-medium text-slate-500 dark:text-gray-400">{t("askAnythingOrTry")}</p>
       </div>
 
       <div className="mt-4 flex w-full max-w-sm flex-col gap-3">
@@ -65,7 +68,7 @@ export default function QuickActions({ onAction }: QuickActionsProps) {
 
       <div className="mt-6 w-full max-w-sm rounded-2xl border border-blue-100 dark:border-blue-900/50 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 p-4">
         <p className="text-[11px] text-slate-600 dark:text-gray-400 leading-relaxed">
-          <span className="font-semibold">Nota:</span> Brother usa IA. As respostas podem conter erros — sempre verifique informações importantes.
+          <span className="font-semibold">{t("noteLabel")}</span> {t("aiDisclaimer")}
         </p>
       </div>
     </div>

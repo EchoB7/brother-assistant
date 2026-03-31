@@ -1,4 +1,5 @@
 import { Download, MessageSquare, Plus, Trash2, X } from "lucide-react";
+import { useI18n } from "../i18n";
 
 interface StoredConversation {
   id: string;
@@ -30,6 +31,7 @@ export default function ConversationSidebar({
   onExport,
   onClose,
 }: ConversationSidebarProps) {
+  const { t } = useI18n();
   return (
     <div
       className={`shrink-0 flex flex-col border-r transition-all duration-300 overflow-hidden ${
@@ -37,19 +39,19 @@ export default function ConversationSidebar({
       } ${darkMode ? "border-gray-700 bg-gray-800" : "border-slate-200 bg-slate-50"}`}
     >
       <div className={`flex items-center justify-between px-4 py-3 ${darkMode ? "border-gray-700" : "border-slate-200"} border-b`}>
-        <h3 className={`text-sm font-bold ${darkMode ? "text-white" : "text-slate-900"}`}>Conversas</h3>
+        <h3 className={`text-sm font-bold ${darkMode ? "text-white" : "text-slate-900"}`}>{t("conversations")}</h3>
         <div className="flex gap-1">
           <button
             onClick={onNew}
             className={`rounded-md p-1.5 transition-colors ${darkMode ? "hover:bg-gray-700 text-gray-400" : "hover:bg-slate-200 text-slate-500"}`}
-            title="Nova conversa"
+            title={t("newConversation")}
           >
             <Plus className="h-4 w-4" />
           </button>
           <button
             onClick={onClose}
             className={`rounded-md p-1.5 transition-colors ${darkMode ? "hover:bg-gray-700 text-gray-400" : "hover:bg-slate-200 text-slate-500"}`}
-            title="Fechar"
+            title={t("close")}
           >
             <X className="h-4 w-4" />
           </button>
@@ -59,7 +61,7 @@ export default function ConversationSidebar({
       <div className="flex-1 overflow-y-auto scrollbar-thin p-2">
         {conversations.length === 0 ? (
           <p className={`px-2 py-4 text-center text-xs ${darkMode ? "text-gray-500" : "text-slate-400"}`}>
-            Nenhuma conversa ainda
+            {t("noConversationsYet")}
           </p>
         ) : (
           conversations.map((conv) => (
@@ -86,7 +88,7 @@ export default function ConversationSidebar({
                 className={`hidden rounded p-0.5 transition-colors group-hover:block ${
                   darkMode ? "hover:bg-blue-500/20 text-gray-500 hover:text-blue-400" : "hover:bg-blue-50 text-slate-400 hover:text-blue-500"
                 }`}
-                title="Exportar"
+                title={t("export")}
               >
                 <Download className="h-3 w-3" />
               </button>
@@ -98,7 +100,7 @@ export default function ConversationSidebar({
                 className={`hidden rounded p-0.5 transition-colors group-hover:block ${
                   darkMode ? "hover:bg-red-500/20 text-gray-500 hover:text-red-400" : "hover:bg-red-50 text-slate-400 hover:text-red-500"
                 }`}
-                title="Excluir"
+                title={t("delete")}
               >
                 <Trash2 className="h-3 w-3" />
               </button>

@@ -4,6 +4,10 @@
 
 Native AI assistant for Linux with its own window, system tray and global hotkey. No terminal dependency.
 
+<p align="center">
+  <img src="screenshots/preview.png" alt="Brother Assistant" width="400">
+</p>
+
 ## Features
 
 - **Streaming chat** — Real-time responses with Markdown rendering, syntax highlighting and copy-to-clipboard code blocks
@@ -16,6 +20,7 @@ Native AI assistant for Linux with its own window, system tray and global hotkey
 - **Global hotkey** — `Super+Shift+B` to show/hide the window from anywhere
 - **Autostart** — Option to launch on system startup (XDG autostart)
 - **Web search** — Searches DuckDuckGo and brings results inside the chat
+- **Multi-language** — 11 languages: English, Português, Español, Русский, 日本語, 中文, العربية, Deutsch, Français, Italiano, हिन्दी
 - **Account rotation** — Multiple API keys with automatic rotation on rate limit
 
 ## Tech Stack

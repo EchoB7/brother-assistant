@@ -4,6 +4,10 @@
 
 Asistente de IA nativo para Linux con ventana propia, bandeja del sistema y atajo global. Sin dependencia de terminal.
 
+<p align="center">
+  <img src="screenshots/preview.png" alt="Brother Assistant" width="400">
+</p>
+
 ## Características
 
 - **Chat con streaming** — Respuestas en tiempo real con Markdown, resaltado de sintaxis y bloques de código copiables
@@ -16,6 +20,7 @@ Asistente de IA nativo para Linux con ventana propia, bandeja del sistema y ataj
 - **Atajo global** — `Super+Shift+B` para mostrar/ocultar la ventana desde cualquier lugar
 - **Inicio automático** — Opción de iniciar con el sistema (XDG autostart)
 - **Búsqueda web** — Busca en DuckDuckGo y trae resultados dentro del chat
+- **Multi-idioma** — 11 idiomas: English, Português, Español, Русский, 日本語, 中文, العربية, Deutsch, Français, Italiano, हिन्दी
 - **Rotación de cuentas** — Múltiples API keys con rotación automática en caso de rate limit
 
 ## Stack Técnico

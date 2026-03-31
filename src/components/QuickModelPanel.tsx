@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, CheckCircle2, Layers3, Sparkles, X } from "lucide-react";
 import { PROVIDER_SPECS, getProviderModels, getProviderSpec, groupModelsByFamily } from "../modelCatalog";
+import { useI18n } from "../i18n";
 import type { SettingsState } from "../types";
 
 interface QuickModelPanelProps {
@@ -39,6 +40,7 @@ export default function QuickModelPanel({
   onSelectProvider,
   onSelectModel,
 }: QuickModelPanelProps) {
+  const { t } = useI18n();
   const selectedProvider = useMemo(
     () => getProviderSpec(settingsState.provider),
     [settingsState.provider]
@@ -104,18 +106,18 @@ export default function QuickModelPanel({
         <div className="flex items-start justify-between gap-3 border-b border-slate-200/80 dark:border-gray-700 px-5 py-4">
           <div>
             <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-gray-500">
-              Sessao ativa
+              {t("session")}
             </div>
-            <h3 className="mt-1 text-base font-bold text-slate-900 dark:text-gray-100">Provedor e modelo</h3>
+            <h3 className="mt-1 text-base font-bold text-slate-900 dark:text-gray-100">{t("providerAndModel")}</h3>
             <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
-              Troque sem sair do chat. A configuracao completa continua no botao de ajustes.
+              {t("quickModelDescription")}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
-            aria-label="Fechar painel rapido"
+            aria-label={t("closeQuickPanel")}
           >
             <X className="h-4 w-4" />
           </button>
@@ -129,7 +131,7 @@ export default function QuickModelPanel({
               </span>
               <div className="min-w-0">
                 <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-gray-500">
-                  Atual
+                  {t("current")}
                 </div>
                 <div className="mt-1 truncate text-sm font-semibold text-slate-900 dark:text-gray-100">
                   {selectedProvider.label}
@@ -152,10 +154,10 @@ export default function QuickModelPanel({
               )}
               <span>
                 {providerReady
-                  ? "Credencial disponivel para este provedor."
+                  ? t("credentialReady")
                   : selectedProvider.name === "copilot"
-                    ? "Adicione uma conta Copilot nas configuracoes completas."
-                    : "Este provedor ainda nao tem token configurado."}
+                    ? t("addCopilotAccount")
+                    : t("noTokenForProvider")}
               </span>
             </div>
           </div>
@@ -163,7 +165,7 @@ export default function QuickModelPanel({
           <section className="mt-5">
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-gray-300">
               <Layers3 className="h-4 w-4 text-slate-400" />
-              Provedor
+              {t("provider")}
             </div>
             <div className="grid max-h-64 gap-2 overflow-y-auto pr-1 scrollbar-thin">
               {PROVIDER_SPECS.map((provider) => {
@@ -181,7 +183,7 @@ export default function QuickModelPanel({
                     } disabled:cursor-not-allowed disabled:opacity-60`}
                   >
                     <div className="text-sm font-semibold">{provider.label}</div>
-                    <div className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">{provider.summary}</div>
+                    <div className="mt-1 text-[11px] text-slate-500 dark:text-gray-400">{t(provider.summary)}</div>
                     <div className="mt-1 text-[10px] text-slate-400 dark:text-gray-500">{provider.endpoint}</div>
                   </button>
                 );
@@ -190,7 +192,7 @@ export default function QuickModelPanel({
           </section>
 
           <section className="mt-5">
-            <div className="mb-2 text-sm font-semibold text-slate-700 dark:text-gray-300">Modelo</div>
+            <div className="mb-2 text-sm font-semibold text-slate-700 dark:text-gray-300">{t("model")}</div>
             {selectedProvider.models.length > 0 ? (
               <div className="space-y-2">
                 <input
@@ -198,12 +200,12 @@ export default function QuickModelPanel({
                   value={modelQuery}
                   disabled={disabled}
                   onChange={(event) => setModelQuery(event.target.value)}
-                  placeholder="Buscar modelo..."
+                  placeholder={t("searchModel")}
                   className="w-full rounded-2xl border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-3 text-sm text-slate-800 dark:text-gray-200 outline-none transition-colors focus:border-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                 />
                 <div className="max-h-56 overflow-y-auto rounded-[22px] border border-slate-200 dark:border-gray-600 bg-white/95 dark:bg-gray-800/95 p-2 scrollbar-thin shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
                   {filteredModels.length === 0 ? (
-                    <div className="px-3 py-2 text-xs text-slate-500 dark:text-gray-400">Nenhum modelo encontrado.</div>
+                    <div className="px-3 py-2 text-xs text-slate-500 dark:text-gray-400">{t("noModelFound")}</div>
                   ) : (
                     Object.entries(groupedModels).map(([family, models]) => (
                       <div key={family} className="mb-3 last:mb-0">
@@ -262,7 +264,7 @@ export default function QuickModelPanel({
                 </button>
               </div>
             )}
-            <p className="mt-2 text-xs text-slate-400 dark:text-gray-500">{selectedProvider.helpText}</p>
+            <p className="mt-2 text-xs text-slate-400 dark:text-gray-500">{t(selectedProvider.helpText)}</p>
           </section>
         </div>
       </aside>
