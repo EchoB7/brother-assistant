@@ -1,0 +1,77 @@
+@import "tailwindcss";
+@import "highlight.js/styles/github-dark.min.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color: rgba(15, 23, 42, 1);
+  background: transparent;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+@layer base {
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root {
+    width: 100%;
+    height: 100%;
+  }
+  html {
+    background: transparent;
+  }
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    background: transparent;
+    overflow: hidden;
+  }
+  button { cursor: pointer; border: 0; background: none; font: inherit; }
+  textarea, input { font: inherit; resize: none; }
+}
+
+/* Custom scrollbar */
+.scrollbar-thin::-webkit-scrollbar { width: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+.scrollbar-thin { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+
+/* Animations */
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-msg-in { animation: msg-in 0.25s ease-out; }
+
+img {
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+/* Drag region for custom titlebar */
+[data-tauri-drag-region], [data-drag-region] { -webkit-app-region: drag; }
+[data-tauri-drag-region] button, [data-drag-region] button { -webkit-app-region: no-drag; }
+
+/* Markdown prose override */
+.prose { font-size: 0.875rem; line-height: 1.625; }
+.prose p { margin-top: 0.5em; margin-bottom: 0.5em; }
+.prose ul, .prose ol { margin-top: 0.5em; margin-bottom: 0.5em; padding-left: 1.5em; }
+.prose li { margin-top: 0.25em; margin-bottom: 0.25em; }
+.prose h1, .prose h2, .prose h3, .prose h4 { margin-top: 1em; margin-bottom: 0.5em; font-weight: 700; }
+.prose h1 { font-size: 1.25em; }
+.prose h2 { font-size: 1.125em; }
+.prose h3 { font-size: 1em; }
+.prose blockquote { border-left: 3px solid #cbd5e1; padding-left: 1em; color: #64748b; margin: 0.5em 0; }
+.prose hr { margin: 1em 0; border-color: #e2e8f0; }
+.prose pre { margin: 0; padding: 0; background: transparent; overflow: visible; }
+.prose code { font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace; }
+
+/* Dark mode prose overrides */
+.dark .prose { color: #d1d5db; }
+.dark .prose h1, .dark .prose h2, .dark .prose h3, .dark .prose h4 { color: #f3f4f6; }
+.dark .prose blockquote { border-left-color: #4b5563; color: #9ca3af; }
+.dark .prose hr { border-color: #374151; }
+.dark .prose strong { color: #f3f4f6; }
+.dark .scrollbar-thin::-webkit-scrollbar-thumb { background: #4b5563; }
+.dark .scrollbar-thin { scrollbar-color: #4b5563 transparent; }

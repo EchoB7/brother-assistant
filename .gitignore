@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+target/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Env / secrets (NUNCA commitar)
+.env
+.env.*
+*.pem
+*.key
+
+# Rust
+**/*.rs.bk
+
+# Tauri legacy (removido)
+src-tauri/
+
+# Pasta de temas (projeto separado)
+temas/
+
+# Build de subcrates
+linux-cli/target/

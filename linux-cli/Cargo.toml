@@ -1,0 +1,10 @@
+[package]
+name = "brother-linux-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+brother-core = { path = "../brother-core" }
+reqwest = { version = "0.12", features = ["json", "stream"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

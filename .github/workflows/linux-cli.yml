@@ -1,0 +1,28 @@
+name: Linux CLI
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "brother-core/**"
+      - "linux-cli/**"
+      - ".github/workflows/linux-cli.yml"
+  pull_request:
+    paths:
+      - "brother-core/**"
+      - "linux-cli/**"
+      - ".github/workflows/linux-cli.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build Linux CLI
+        run: cargo build --manifest-path linux-cli/Cargo.toml
+      - name: Smoke Test Status JSON
+        run: cargo run --manifest-path linux-cli/Cargo.toml -- status --json
+      - name: Smoke Test System Info JSON
+        run: cargo run --manifest-path linux-cli/Cargo.toml -- system-info --json

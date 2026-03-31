@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Brother Assistant
+Comment=AI Assistant for Linux
+Exec=brother-shell
+Icon=brother-assistant
+Terminal=false
+Type=Application
+Categories=Utility;Chat;
+Keywords=AI;assistant;chat;copilot;
+StartupWMClass=brother

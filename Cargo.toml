@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "brother-core",
+    "linux-cli",
+    "brother-shell",
+]
+
+resolver = "2"

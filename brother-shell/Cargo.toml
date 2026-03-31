@@ -1,0 +1,38 @@
+[package]
+name = "brother-shell"
+version = "0.1.0"
+edition = "2021"
+description = "Brother AI Assistant - Desktop app for Linux"
+license = "MIT"
+authors = ["Alex"]
+
+[package.metadata.deb]
+maintainer = "Alex"
+copyright = "2026, Alex"
+depends = "libwebkit2gtk-4.1-0, libgtk-3-0, libayatana-appindicator3-1"
+section = "utils"
+priority = "optional"
+assets = [
+    ["target/release/brother-shell", "usr/bin/", "755"],
+    ["../dist/**/*", "usr/share/brother-assistant/dist/", "644"],
+    ["icon.png", "usr/share/icons/hicolor/256x256/apps/brother-assistant.png", "644"],
+    ["brother-assistant.desktop", "usr/share/applications/", "644"],
+]
+
+[dependencies]
+base64 = "0.22"
+brother-core = { path = "../brother-core" }
+dirs = "5.0.1"
+global-hotkey = "0.7"
+glob = "0.3"
+gtk = "0.18.2"
+image = "0.25"
+lopdf = "0.34"
+reqwest = { version = "0.12", features = ["json", "stream"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tao = "0.34.8"
+tray-icon = "0.21"
+tokio = { version = "1", features = ["rt-multi-thread"] }
+wry = "0.54.4"
+zip = "2"
