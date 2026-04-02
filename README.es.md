@@ -87,4 +87,4 @@ scripts/         # Scripts de build
 
 ## Licencia
 
-GPL
+LGPL
