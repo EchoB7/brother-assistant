@@ -1,4 +1,4 @@
-import { useState, useCallback, type ComponentPropsWithoutRef } from "react";
+import { useState, useCallback, useEffect, useId, type ComponentPropsWithoutRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -43,6 +43,10 @@ function CodeBlock(props: ComponentPropsWithoutRef<"code">) {
 
   const lang = className?.replace("language-", "") ?? "";
 
+  if (lang === "mermaid") {
+    return <MermaidBlock chart={text} />;
+  }
+
   return (
     <div className="group relative my-3 rounded-lg border border-slate-200 bg-slate-900 dark:border-slate-700">
       <div className="flex items-center justify-between rounded-t-lg bg-slate-800 px-3 py-1.5">
@@ -56,6 +60,85 @@ function CodeBlock(props: ComponentPropsWithoutRef<"code">) {
           {children}
         </code>
       </pre>
+    </div>
+  );
+}
+
+function MermaidBlock({ chart }: { chart: string }) {
+  const elementId = useId().replace(/[:]/g, "-");
+  const [svg, setSvg] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [themeVersion, setThemeVersion] = useState(0);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const observer = new MutationObserver(() => {
+      setThemeVersion((current) => current + 1);
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function renderChart() {
+      try {
+        const mermaid = (await import("mermaid")).default;
+        const isDark = document.documentElement.classList.contains("dark");
+
+        mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: "loose",
+          theme: isDark ? "dark" : "default",
+        });
+
+        const result = await mermaid.render(`brother-mermaid-${elementId}-${themeVersion}`, chart);
+        if (!cancelled) {
+          setSvg(result.svg);
+          setError(null);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setSvg("");
+          setError(err instanceof Error ? err.message : "Falha ao renderizar diagrama.");
+        }
+      }
+    }
+
+    renderChart();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chart, elementId, themeVersion]);
+
+  return (
+    <div className="my-4 overflow-hidden rounded-xl border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">
+        Mermaid
+      </div>
+      {svg ? (
+        <div
+          className="mermaid-render [&_svg]:h-auto [&_svg]:max-w-full"
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+      ) : (
+        <pre className="overflow-x-auto rounded-lg bg-slate-50 p-3 text-[13px] text-slate-700 dark:bg-slate-950 dark:text-slate-200">
+          <code>{chart}</code>
+        </pre>
+      )}
+      {error && (
+        <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

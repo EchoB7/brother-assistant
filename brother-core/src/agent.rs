@@ -16,6 +16,7 @@ pub enum AgentAction {
     OpenUrl { url: String },
     OpenPath { path: PathBuf },
     SetWallpaper { path: PathBuf },
+    DownloadImageAndSetWallpaper { query: String },
     // File operations
     CreateFile { path: PathBuf, content: String },
     EditFile { path: PathBuf, content: String },
@@ -93,6 +94,10 @@ fn agent_action_from_plan(plan: AgentPlan, original_input: &str) -> Option<Agent
             .map(PathBuf::from)
             .map(|path| AgentAction::SetWallpaper { path })
             .or_else(|| detect_absolute_file_path(original_input, &[".png", ".jpg", ".jpeg", ".webp"]).map(|path| AgentAction::SetWallpaper { path })),
+        "download_image_and_set_wallpaper" => {
+            let query = plan.arguments.get("query").and_then(|v| v.as_str())?.to_string();
+            Some(AgentAction::DownloadImageAndSetWallpaper { query })
+        }
         "create_file" => {
             let path = plan.arguments.get("path").and_then(|v| v.as_str()).map(PathBuf::from)?;
             let content = plan.arguments.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
@@ -321,6 +326,19 @@ pub fn detect_agent_action(input: &str) -> Option<AgentAction> {
     let normalized = input.to_lowercase();
     let wants_browser = normalized.contains("navegador") || normalized.contains("browser");
     let wants_create = normalized.contains("crie") || normalized.contains("criar") || normalized.contains("gera") || normalized.contains("gerar");
+    let wants_download = normalized.contains("baixe")
+        || normalized.contains("baixar")
+        || normalized.contains("download")
+        || normalized.contains("salve em imagens")
+        || normalized.contains("save to pictures");
+
+    if (normalized.contains("wallpaper") || normalized.contains("papel de parede"))
+        && wants_download
+    {
+        return Some(AgentAction::DownloadImageAndSetWallpaper {
+            query: extract_wallpaper_query(input),
+        });
+    }
 
     if wants_create && normalized.contains("html") && wants_browser {
         return Some(AgentAction::CreateSimpleHtmlAndOpen);
@@ -450,6 +468,52 @@ fn create_simple_html_file() -> Result<PathBuf, String> {
     Ok(path)
 }
 
+fn extract_wallpaper_query(input: &str) -> String {
+    let mut query = input.to_string();
+    let replacements = [
+        "baixe uma imagem do google do",
+        "baixe uma imagem do google de",
+        "baixe uma imagem de",
+        "baixe imagem de",
+        "download an image of",
+        "download image of",
+        "salve em imagens",
+        "save it to pictures",
+        "use ela como papel de parede",
+        "use ela de papel de parede",
+        "use it as wallpaper",
+        "e use ela como papel de parede",
+        "e use como papel de parede",
+        "e use it as wallpaper",
+        "papel de parede",
+        "wallpaper",
+    ];
+
+    for value in replacements {
+        query = query.replace(value, " ");
+        query = query.replace(&value.to_uppercase(), " ");
+    }
+
+    let cleaned = query
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim()
+        .trim_matches(|c: char| c == ',' || c == '.' || c == ':' || c == ';')
+        .to_string();
+    let cleaned = cleaned
+        .trim_end_matches(" e")
+        .trim_end_matches(" and")
+        .trim()
+        .to_string();
+
+    if cleaned.is_empty() {
+        input.to_string()
+    } else {
+        cleaned
+    }
+}
+
 fn set_wallpaper(path: &PathBuf) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
@@ -475,6 +539,208 @@ fn set_wallpaper(path: &PathBuf) -> Result<(), String> {
 
     #[allow(unreachable_code)]
     Err("Troca de wallpaper está implementada apenas para GNOME no Linux nesta versão.".into())
+}
+
+fn pictures_dir() -> PathBuf {
+    if let Some(dir) = dirs::picture_dir() {
+        return dir;
+    }
+
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/tmp"));
+    let localized = home.join("Imagens");
+    if localized.exists() {
+        return localized;
+    }
+
+    home.join("Pictures")
+}
+
+fn sanitize_filename_part(value: &str) -> String {
+    let filtered: String = value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else if ch.is_alphanumeric() {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect();
+
+    let compact = filtered
+        .split('-')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+
+    if compact.is_empty() {
+        "wallpaper".to_string()
+    } else {
+        compact
+    }
+}
+
+fn extract_first_search_result_url(html: &str) -> Option<String> {
+    let mut cursor = html;
+    while let Some(idx) = cursor.find("href=\"") {
+        let rest = &cursor[idx + 6..];
+        let Some(href) = rest.split('"').next() else {
+            break;
+        };
+
+        if let Some(encoded) = href.split("uddg=").nth(1) {
+            let raw = encoded
+                .split('&')
+                .next()
+                .unwrap_or(encoded)
+                .replace("&amp;", "&");
+            let decoded = urlencoding::decode(&raw).ok()?.into_owned();
+            if decoded.starts_with("http://") || decoded.starts_with("https://") {
+                return Some(decoded);
+            }
+        }
+
+        if href.starts_with("http://") || href.starts_with("https://") {
+            return Some(href.to_string());
+        }
+
+        cursor = &rest[href.len()..];
+    }
+
+    None
+}
+
+fn extract_meta_content<'a>(html: &'a str, marker: &str) -> Option<&'a str> {
+    let idx = html.find(marker)?;
+    let rest = &html[idx..];
+    let content_marker = "content=\"";
+    let content_idx = rest.find(content_marker)? + content_marker.len();
+    let tail = &rest[content_idx..];
+    tail.split('"').next()
+}
+
+fn extract_image_url_from_page(page_url: &str, html: &str) -> Option<String> {
+    let candidates = [
+        extract_meta_content(html, "property=\"og:image\""),
+        extract_meta_content(html, "name=\"twitter:image\""),
+        extract_meta_content(html, "property=\"twitter:image\""),
+    ];
+
+    for candidate in candidates.into_iter().flatten() {
+        if candidate.starts_with("http://") || candidate.starts_with("https://") {
+            return Some(candidate.to_string());
+        }
+        if candidate.starts_with('/') {
+            if let Ok(base) = reqwest::Url::parse(page_url) {
+                if let Ok(url) = base.join(candidate) {
+                    return Some(url.to_string());
+                }
+            }
+        }
+    }
+
+    for chunk in html.split("<img") {
+        let Some(src) = chunk.split("src=\"").nth(1).and_then(|value| value.split('"').next()) else {
+            continue;
+        };
+        if src.starts_with("data:") || src.ends_with(".svg") {
+            continue;
+        }
+        if src.starts_with("http://") || src.starts_with("https://") {
+            return Some(src.to_string());
+        }
+        if src.starts_with('/') {
+            if let Ok(base) = reqwest::Url::parse(page_url) {
+                if let Ok(url) = base.join(src) {
+                    return Some(url.to_string());
+                }
+            }
+        }
+    }
+
+    None
+}
+
+async fn download_image_for_wallpaper(query: &str) -> Result<PathBuf, String> {
+    let search_query = format!("{} wallpaper", query);
+    let encoded = urlencoding::encode(&search_query);
+    let search_url = format!("https://html.duckduckgo.com/html/?q={}", encoded);
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| format!("Falha ao criar HTTP client: {e}"))?;
+
+    let search_html = client
+        .get(&search_url)
+        .send()
+        .await
+        .map_err(|e| format!("Falha ao pesquisar imagem: {e}"))?
+        .text()
+        .await
+        .map_err(|e| format!("Falha ao ler resultados da pesquisa: {e}"))?;
+
+    let page_url = extract_first_search_result_url(&search_html)
+        .ok_or_else(|| "Não encontrei uma página de origem para a imagem pesquisada.".to_string())?;
+
+    let page_html = client
+        .get(&page_url)
+        .send()
+        .await
+        .map_err(|e| format!("Falha ao abrir a página do resultado: {e}"))?
+        .text()
+        .await
+        .map_err(|e| format!("Falha ao ler a página do resultado: {e}"))?;
+
+    let image_url = extract_image_url_from_page(&page_url, &page_html)
+        .ok_or_else(|| "Não encontrei uma imagem utilizável no primeiro resultado da pesquisa.".to_string())?;
+
+    let image_response = client
+        .get(&image_url)
+        .send()
+        .await
+        .map_err(|e| format!("Falha ao baixar a imagem encontrada: {e}"))?;
+
+    if !image_response.status().is_success() {
+        return Err(format!("Falha ao baixar a imagem: HTTP {}.", image_response.status()));
+    }
+
+    let content_type = image_response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
+
+    let extension = if content_type.contains("png") {
+        "png"
+    } else if content_type.contains("webp") {
+        "webp"
+    } else {
+        "jpg"
+    };
+
+    let bytes = image_response
+        .bytes()
+        .await
+        .map_err(|e| format!("Falha ao ler a imagem baixada: {e}"))?;
+
+    if bytes.is_empty() {
+        return Err("A imagem baixada veio vazia.".into());
+    }
+
+    let pictures = pictures_dir();
+    fs::create_dir_all(&pictures).map_err(|e| format!("Falha ao preparar a pasta Imagens: {e}"))?;
+    let path = pictures.join(format!(
+        "brother-wallpaper-{}.{}",
+        sanitize_filename_part(query),
+        extension
+    ));
+
+    fs::write(&path, &bytes).map_err(|e| format!("Falha ao salvar a imagem em disco: {e}"))?;
+    Ok(path)
 }
 
 fn validate_path_safety(path: &PathBuf) -> Result<(), String> {
@@ -658,6 +924,15 @@ pub async fn execute_agent_action(action: &AgentAction) -> Result<String, String
             set_wallpaper(path)?;
             Ok(format!("Modo agente: alterei o wallpaper usando a imagem {}.", path.display()))
         }
+        AgentAction::DownloadImageAndSetWallpaper { query } => {
+            let image_path = download_image_for_wallpaper(query).await?;
+            set_wallpaper(&image_path)?;
+            Ok(format!(
+                "Modo agente: baixei uma imagem para '{}' em {} e apliquei como wallpaper.",
+                query,
+                image_path.display()
+            ))
+        }
         AgentAction::CreateFile { path, content } => {
             // Security: block paths outside home
             validate_path_safety(path)?;
@@ -747,5 +1022,34 @@ pub async fn execute_agent_action(action: &AgentAction) -> Result<String, String
             open_target(&url)?;
             Ok(format!("Modo agente: abri o navegador com a pesquisa '{}'.", query))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{detect_agent_action, extract_first_search_result_url, extract_wallpaper_query, AgentAction};
+
+    #[test]
+    fn detects_download_and_wallpaper_request() {
+        let action = detect_agent_action("baixe uma imagem do google do dragon ball e salve em imagens e use ela como papel de parede");
+        match action {
+            Some(AgentAction::DownloadImageAndSetWallpaper { query }) => {
+                assert!(query.to_lowercase().contains("dragon ball"));
+            }
+            _ => panic!("expected download wallpaper action"),
+        }
+    }
+
+    #[test]
+    fn extracts_query_without_wallpaper_noise() {
+        let query = extract_wallpaper_query("baixe uma imagem de aurora boreal e use ela como papel de parede");
+        assert_eq!(query, "aurora boreal");
+    }
+
+    #[test]
+    fn extracts_first_duckduckgo_result_url() {
+        let html = r#"<a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fwallpaper&amp;rut=123">Result</a>"#;
+        let url = extract_first_search_result_url(html).expect("expected result url");
+        assert_eq!(url, "https://example.com/wallpaper");
     }
 }

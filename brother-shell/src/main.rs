@@ -556,12 +556,21 @@ fn parse_arg<T: serde::de::DeserializeOwned>(args: &Option<Value>, key: &str) ->
 	serde_json::from_value(value).map_err(|error| format!("Parâmetro inválido {}: {}", key, error))
 }
 
-fn handle_window_action(window: &Window, action: WindowAction) {
+fn handle_window_action(window: &Window, action: WindowAction) -> bool {
 	match action {
-		WindowAction::Minimize => window.set_minimized(true),
-		WindowAction::ToggleMaximize => window.set_maximized(!window.is_maximized()),
-		WindowAction::Close => window.set_visible(false), // Esconde para a tray
-		WindowAction::StartDrag => { let _ = window.drag_window(); }
+		WindowAction::Minimize => {
+			window.set_minimized(true);
+			false
+		}
+		WindowAction::ToggleMaximize => {
+			window.set_maximized(!window.is_maximized());
+			false
+		}
+		WindowAction::Close => true,
+		WindowAction::StartDrag => {
+			let _ = window.drag_window();
+			false
+		}
 	}
 }
 
@@ -1149,7 +1158,10 @@ fn main() {
 						handle_invoke(id, command, args, proxy.clone(), &runtime);
 					}
 					Ok(IpcMessage::WindowControl { action }) => {
-						handle_window_action(&window, action);
+						if handle_window_action(&window, action) {
+							tray.borrow_mut().take();
+							*control_flow = ControlFlow::Exit;
+						}
 					}
 					Err(error) => {
 						send_eval(
