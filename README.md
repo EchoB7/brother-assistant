@@ -88,4 +88,4 @@ scripts/         # Build scripts
 
 ## License
 
-GPL
+LGPL
