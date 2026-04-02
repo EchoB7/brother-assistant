@@ -87,4 +87,4 @@ scripts/         # Scripts de build
 
 ## Licença
 
-MIT
+GPL
