@@ -85,8 +85,7 @@ scripts/         # Build scripts
 - **Only external communication** — The AI provider API you chose
 - **100% offline option** — Use Custom provider pointing to a local Ollama instance
 
-## License
 
 ## License
 
-MIT
+GPL
