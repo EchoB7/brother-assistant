@@ -12,6 +12,7 @@ Assistente de IA nativo para Linux com janela própria, system tray e atalho glo
 
 - **Chat com streaming** — Respostas em tempo real com Markdown, syntax highlight e blocos de código copiáveis
 - **Multi-provedor** — GitHub Copilot, OpenAI, Venice, Groq, OpenRouter, Gemini, xAI, Custom (Ollama/LM Studio)
+- **Catálogo de skills OpenClaw** — Busca e importação de skills compatíveis da comunidade direto nas Configurações
 - **Modo Agente** — Executa ações no PC: criar/editar/excluir arquivos, abrir apps, pesquisar na web, organizar pastas e gerar imagens
 - **Entrada por voz e TTS** — Ditado por microfone para prompts e leitura em voz alta das respostas do assistente
 - **Arrastar arquivos** — Drag & drop de PDF, DOCX, TXT e imagens direto no chat
@@ -87,11 +88,12 @@ scripts/         # Scripts de build
 ## Skills
 
 - O Brother agora tem uma base local de skills para ampliar o prompt e especializar tarefas.
+- O Brother tambem consegue buscar e importar skills compativeis da comunidade OpenClaw, deixando esse catalogo externo disponivel dentro das Configuracoes.
 - As skills são carregadas de `skills/` no projeto atual, de um diretório `skills/` ao lado do executável, ou de `~/.config/copilot-assistente/skills/`.
 - Cada skill vive em sua própria pasta e precisa de um `SKILL.md` com `name`, `description` e instruções em Markdown.
 - O manifesto agora aceita `metadata` com um objeto JSON do Brother contendo `version`, `source`, `tools`, `permissions`, `installRequired`, `requiresApproval` e `autoActivate`.
 - Skills que exigem permissões extras ou instalação entram no catálogo, mas não são ativadas automaticamente sem aprovação do usuário.
-- As configurações agora incluem um catálogo de skills com lista local, busca no OpenClaw e instalação com um clique quando a shell nativa oferece suporte.
+- As configurações agora incluem um catálogo de skills com lista local, busca no OpenClaw e instalação com um clique para skills compatíveis do OpenClaw quando a shell nativa oferece suporte.
 - No preview do navegador, a UI usa um fallback embutido para o catálogo, então a busca de skills continua funcionando mesmo antes de reiniciar a shell nativa.
 - As respostas do modo agente agora exibem o identificador da ação executada, como `open_application`, `open_browser_search` ou `web_search`, para facilitar a inspeção do comportamento.
 
