@@ -30,6 +30,8 @@ pub enum AgentAction {
     OpenApplication { name: String },
     WebSearch { query: String },
     OpenBrowserSearch { query: String },
+    // Image generation
+    GenerateImage { prompt: String },
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -142,6 +144,10 @@ fn agent_action_from_plan(plan: AgentPlan, original_input: &str) -> Option<Agent
         "open_browser_search" => {
             let query = plan.arguments.get("query").and_then(|v| v.as_str())?.to_string();
             Some(AgentAction::OpenBrowserSearch { query })
+        }
+        "generate_image" => {
+            let prompt = plan.arguments.get("prompt").and_then(|v| v.as_str())?.to_string();
+            Some(AgentAction::GenerateImage { prompt })
         }
         _ => None,
     }
@@ -1021,6 +1027,25 @@ pub async fn execute_agent_action(action: &AgentAction) -> Result<String, String
             let url = format!("https://www.google.com/search?q={}", encoded);
             open_target(&url)?;
             Ok(format!("Modo agente: abri o navegador com a pesquisa '{}'.", query))
+        }
+        AgentAction::GenerateImage { prompt } => {
+            let encoded = urlencoding::encode(prompt);
+            let api_url = format!("https://image.pollinations.ai/prompt/{}?width=1024&height=1024&nologo=true", encoded);
+            let client = reqwest::Client::new();
+            let response = client.get(&api_url).send().await.map_err(|e| format!("Falha ao gerar imagem: {e}"))?;
+            if !response.status().is_success() {
+                return Err(format!("Falha ao gerar imagem: HTTP {}", response.status()));
+            }
+            let bytes = response.bytes().await.map_err(|e| format!("Falha ao baixar imagem: {e}"))?;
+            let images_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/tmp")).join("Imagens").join("brother-generated");
+            let _ = fs::create_dir_all(&images_dir);
+            let sanitized: String = prompt.chars().filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-').take(50).collect();
+            let sanitized = sanitized.trim().replace(' ', "_");
+            let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
+            let file_name = format!("{}_{}.png", sanitized, timestamp);
+            let file_path = images_dir.join(&file_name);
+            fs::write(&file_path, &bytes).map_err(|e| format!("Falha ao salvar imagem: {e}"))?;
+            Ok(format!("Modo agente: gerei uma imagem para '{}' e salvei em {}.\n\n![{}]({})", prompt, file_path.display(), prompt, file_path.display()))
         }
     }
 }

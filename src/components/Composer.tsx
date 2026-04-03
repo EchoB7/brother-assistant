@@ -1,5 +1,5 @@
-import { useState, useRef, type FormEvent, type KeyboardEvent, type DragEvent } from "react";
-import { Send, StopCircle, Paperclip, X, FileText, ImageIcon } from "lucide-react";
+import { useState, useRef, useEffect, useCallback, type FormEvent, type KeyboardEvent, type DragEvent } from "react";
+import { Send, StopCircle, Paperclip, X, FileText, ImageIcon, Mic, MicOff } from "lucide-react";
 import { useI18n } from "../i18n";
 import type { FileAttachment } from "../types";
 
@@ -16,7 +16,58 @@ export default function Composer({ onSend, onStop, disabled, isTyping }: Compose
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+
+  // Voice input (Web Speech API)
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const speechSupported = typeof window !== "undefined" && !!(window as any).SpeechRecognition || !!(window as any).webkitSpeechRecognition;
+
+  const toggleListening = useCallback(() => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+    const recognition = new SpeechRecognition();
+    const langMap: Record<string, string> = {
+      "en": "en-US", "pt-br": "pt-BR", "es": "es-ES", "ru": "ru-RU", "ja": "ja-JP",
+      "zh": "zh-CN", "ar": "ar-SA", "de": "de-DE", "fr": "fr-FR", "it": "it-IT", "hi": "hi-IN",
+    };
+    recognition.lang = langMap[locale] || "pt-BR";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    let finalTranscript = "";
+    recognition.onresult = (event: any) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      setText((prev) => {
+        const base = prev.replace(/\u200B.*$/, "");
+        return finalTranscript + (interim ? "\u200B" + interim : "");
+      });
+    };
+    recognition.onend = () => {
+      setIsListening(false);
+      setText((prev) => prev.replace(/\u200B/g, ""));
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  }, [isListening, locale]);
+
+  useEffect(() => {
+    return () => { recognitionRef.current?.stop(); };
+  }, []);
 
   const IMAGE_EXTS = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
 
@@ -123,6 +174,20 @@ export default function Composer({ onSend, onStop, disabled, isTyping }: Compose
           >
             <Paperclip className="h-4 w-4" />
           </button>
+          {speechSupported && (
+            <button
+              type="button"
+              onClick={toggleListening}
+              className={`rounded-lg p-2 transition-all duration-200 ${
+                isListening
+                  ? "bg-red-100 text-red-500 animate-pulse dark:bg-red-900/40"
+                  : "text-slate-400 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-gray-700"
+              }`}
+              title={isListening ? t("stopListening") : t("voiceInput")}
+            >
+              {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            </button>
+          )}
           <input
             ref={fileInputRef}
             type="file"

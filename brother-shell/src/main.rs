@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+use std::process::Child;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use base64::Engine;
@@ -729,6 +731,76 @@ fn read_image_base64(path: &str) -> Result<String, String> {
 	Ok(format!("data:{};base64,{}", mime, b64))
 }
 
+// ── TTS via espeak-ng / spd-say ──────────────────────────────────────────────
+static TTS_PROCESS: Mutex<Option<Child>> = Mutex::new(None);
+
+fn speak_text(text: &str, locale: &str) -> Result<bool, String> {
+	stop_speaking();
+
+	// Strip markdown for cleaner speech
+	let plain: String = text
+		.lines()
+		.filter(|l| !l.trim_start().starts_with("```"))
+		.collect::<Vec<_>>()
+		.join("\n")
+		.replace(['#', '*', '_', '`', '~', '>', '[', ']', '(', ')', '!', '|'], "");
+
+	let lang_code = match locale {
+		"pt-br" => "pt-br",
+		"en" => "en",
+		"es" => "es",
+		"ru" => "ru",
+		"ja" => "ja",
+		"zh" => "zh",
+		"ar" => "ar",
+		"de" => "de",
+		"fr" => "fr",
+		"it" => "it",
+		"hi" => "hi",
+		_ => "pt-br",
+	};
+
+	// Try espeak-ng first, then espeak, then spd-say
+	let child = std::process::Command::new("espeak-ng")
+		.args(["-v", lang_code, &plain])
+		.stdin(std::process::Stdio::null())
+		.stdout(std::process::Stdio::null())
+		.stderr(std::process::Stdio::null())
+		.spawn()
+		.or_else(|_| {
+			std::process::Command::new("espeak")
+				.args(["-v", lang_code, &plain])
+				.stdin(std::process::Stdio::null())
+				.stdout(std::process::Stdio::null())
+				.stderr(std::process::Stdio::null())
+				.spawn()
+		})
+		.or_else(|_| {
+			std::process::Command::new("spd-say")
+				.args(["-l", lang_code, &plain])
+				.stdin(std::process::Stdio::null())
+				.stdout(std::process::Stdio::null())
+				.stderr(std::process::Stdio::null())
+				.spawn()
+		})
+		.map_err(|e| format!("Nenhum motor TTS encontrado (espeak-ng, espeak, spd-say): {e}"))?;
+
+	if let Ok(mut guard) = TTS_PROCESS.lock() {
+		*guard = Some(child);
+	}
+	Ok(true)
+}
+
+fn stop_speaking() {
+	if let Ok(mut guard) = TTS_PROCESS.lock() {
+		if let Some(ref mut child) = *guard {
+			let _ = child.kill();
+			let _ = child.wait();
+		}
+		*guard = None;
+	}
+}
+
 fn handle_invoke(
 	id: String,
 	command: String,
@@ -1000,6 +1072,22 @@ fn handle_invoke(
 					Err(error) => send_eval(&proxy_clone, reject_script(&id, &error)),
 				}
 			});
+		}
+		"speak_text" => {
+			let text: String = match parse_arg(&args, "text") {
+				Ok(v) => v,
+				Err(e) => { send_result::<bool>(&proxy, id, Err(e)); return; }
+			};
+			let locale: String = args.as_ref()
+				.and_then(|a| a.get("locale"))
+				.and_then(|v| v.as_str())
+				.unwrap_or("pt-br")
+				.to_string();
+			send_result(&proxy, id, speak_text(&text, &locale));
+		}
+		"stop_speaking" => {
+			stop_speaking();
+			send_result(&proxy, id, Ok(true));
 		}
 		_ => {
 			send_result::<Value>(

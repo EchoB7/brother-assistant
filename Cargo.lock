@@ -236,7 +236,7 @@ dependencies = [
 
 [[package]]
 name = "brother-core"
-version = "0.1.0"
+version = "1.1.0"
 dependencies = [
  "dirs 5.0.1",
  "futures-util",
@@ -250,7 +250,7 @@ dependencies = [
 
 [[package]]
 name = "brother-linux-cli"
-version = "0.1.0"
+version = "1.1.0"
 dependencies = [
  "brother-core",
  "reqwest",
@@ -260,7 +260,7 @@ dependencies = [
 
 [[package]]
 name = "brother-shell"
-version = "0.1.0"
+version = "1.1.0"
 dependencies = [
  "base64",
  "brother-core",

@@ -2,7 +2,56 @@ import { useState, useCallback, useEffect, useId, type ComponentPropsWithoutRef 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Download } from "lucide-react";
+
+function LocalImage({ src, alt, ...rest }: ComponentPropsWithoutRef<"img">) {
+  const [dataUri, setDataUri] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+  const isLocal = typeof src === "string" && src.startsWith("/");
+
+  useEffect(() => {
+    if (!isLocal || !src) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { invokeCommand } = await import("../platform/host");
+        const uri = await invokeCommand<string>("read_image", { path: src });
+        if (!cancelled) setDataUri(uri);
+      } catch {
+        if (!cancelled) setError(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [src, isLocal]);
+
+  if (!isLocal) {
+    return <img src={src} alt={alt} className="my-3 max-w-full rounded-xl shadow-md" {...rest} />;
+  }
+  if (error) {
+    return <p className="text-xs text-red-500 italic">Não foi possível carregar a imagem: {src}</p>;
+  }
+  if (!dataUri) {
+    return (
+      <div className="my-3 flex h-48 w-full items-center justify-center rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="group relative my-3 inline-block">
+      <img src={dataUri} alt={alt || ""} className="max-w-full rounded-xl shadow-md" {...rest} />
+      <a
+        href={dataUri}
+        download={src.split("/").pop() || "image.png"}
+        className="absolute top-2 right-2 rounded-lg bg-black/50 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/70"
+        title="Salvar imagem"
+      >
+        <Download className="h-4 w-4" />
+      </a>
+    </div>
+  );
+}
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -155,6 +204,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
         rehypePlugins={[rehypeHighlight]}
         components={{
           code: CodeBlock,
+          img: LocalImage,
           a: ({ children, href, ...rest }) => (
             <a
               href={href}

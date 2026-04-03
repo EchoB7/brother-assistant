@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Check, Copy, RefreshCw, ThumbsDown, ThumbsUp, User } from "lucide-react";
+import { Check, Copy, RefreshCw, ThumbsDown, ThumbsUp, User, Volume2, VolumeX } from "lucide-react";
 import MarkdownRenderer from "./MarkdownRenderer";
 import { useI18n } from "../i18n";
 import type { Message } from "../types";
@@ -64,6 +64,64 @@ function FeedbackButtons() {
         <ThumbsDown className="h-3.5 w-3.5" />
       </button>
     </>
+  );
+}
+
+function SpeakButton({ text }: { text: string }) {
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const { t, locale } = useI18n();
+
+  const handleSpeak = useCallback(async () => {
+    const { invokeCommand } = await import("../platform/host");
+    if (isSpeaking) {
+      try { await invokeCommand("stop_speaking"); } catch {}
+      setIsSpeaking(false);
+      return;
+    }
+    try {
+      await invokeCommand("speak_text", { text, locale });
+      setIsSpeaking(true);
+      // Poll to detect when speech ends (espeak-ng process finishes)
+      const poll = setInterval(async () => {
+        // Simple timeout — espeak typically speaks ~150 words/min
+        // We just auto-reset after a generous estimate
+      }, 1000);
+      const wordCount = text.split(/\s+/).length;
+      const estimatedMs = Math.max(3000, (wordCount / 2.5) * 1000);
+      setTimeout(() => {
+        clearInterval(poll);
+        setIsSpeaking(false);
+      }, estimatedMs);
+    } catch {
+      // Fallback: try Web Speech API
+      if (window.speechSynthesis) {
+        const plain = text.replace(/```[\s\S]*?```/g, "").replace(/[#*_`~>\[\]()!|]/g, "").replace(/\n+/g, ". ").trim();
+        const utterance = new SpeechSynthesisUtterance(plain);
+        const langMap: Record<string, string> = {
+          "en": "en-US", "pt-br": "pt-BR", "es": "es-ES", "ru": "ru-RU", "ja": "ja-JP",
+          "zh": "zh-CN", "ar": "ar-SA", "de": "de-DE", "fr": "fr-FR", "it": "it-IT", "hi": "hi-IN",
+        };
+        utterance.lang = langMap[locale] || "pt-BR";
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => setIsSpeaking(false);
+        window.speechSynthesis.speak(utterance);
+        setIsSpeaking(true);
+      }
+    }
+  }, [text, isSpeaking, locale]);
+
+  return (
+    <button
+      onClick={handleSpeak}
+      className={`rounded-md p-1 transition-colors ${
+        isSpeaking
+          ? "text-blue-500 animate-pulse"
+          : "text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:text-gray-500 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+      }`}
+      title={isSpeaking ? t("stopSpeaking") : t("speakMessage")}
+    >
+      {isSpeaking ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+    </button>
   );
 }
 
@@ -134,6 +192,7 @@ export default function ChatPanel({ messages, isTyping, onRegenerate }: ChatPane
               {showActions && (
                 <div className="mt-2 flex items-center gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
                   <CopyMessageButton text={msg.content} />
+                  <SpeakButton text={msg.content} />
                   <FeedbackButtons />
                   {isLastAssistant && onRegenerate && (
                     <button
