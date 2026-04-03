@@ -12,7 +12,8 @@ Native AI assistant for Linux with its own window, system tray and global hotkey
 
 - **Streaming chat** — Real-time responses with Markdown rendering, syntax highlighting and copy-to-clipboard code blocks
 - **Multi-provider** — GitHub Copilot, OpenAI, Venice, Groq, OpenRouter, Gemini, xAI, Custom (Ollama/LM Studio)
-- **Agent mode** — Execute actions on your PC: create/edit/delete files, open apps, web search, organize folders
+- **Agent mode** — Execute actions on your PC: create/edit/delete files, open apps, web search, organize folders and generate images
+- **Voice input and TTS** — Dictate prompts by microphone and read assistant responses aloud
 - **Drag & drop files** — Drop PDF, DOCX, TXT, images directly into the chat
 - **Conversation history** — Persisted locally with export to Markdown
 - **Dark mode** — Light/dark theme toggle
@@ -42,6 +43,10 @@ Native AI assistant for Linux with its own window, system tray and global hotkey
 - System dependencies:
   ```bash
   sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev
+  ```
+- Optional TTS engines for read-aloud:
+  ```bash
+  sudo apt install espeak-ng speech-dispatcher
   ```
 
 ## Getting Started

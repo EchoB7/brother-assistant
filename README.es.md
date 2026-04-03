@@ -12,7 +12,8 @@ Asistente de IA nativo para Linux con ventana propia, bandeja del sistema y ataj
 
 - **Chat con streaming** — Respuestas en tiempo real con Markdown, resaltado de sintaxis y bloques de código copiables
 - **Multi-proveedor** — GitHub Copilot, OpenAI, Venice, Groq, OpenRouter, Gemini, xAI, Custom (Ollama/LM Studio)
-- **Modo Agente** — Ejecuta acciones en tu PC: crear/editar/eliminar archivos, abrir apps, buscar en la web, organizar carpetas
+- **Modo Agente** — Ejecuta acciones en tu PC: crear/editar/eliminar archivos, abrir apps, buscar en la web, organizar carpetas y generar imágenes
+- **Entrada por voz y TTS** — Dictado por micrófono para prompts y lectura en voz alta de las respuestas del asistente
 - **Arrastrar archivos** — Drag & drop de PDF, DOCX, TXT e imágenes directo al chat
 - **Historial de conversaciones** — Persistido localmente con exportación a Markdown
 - **Modo oscuro** — Tema claro/oscuro con toggle
@@ -42,6 +43,10 @@ Asistente de IA nativo para Linux con ventana propia, bandeja del sistema y ataj
 - Dependencias del sistema:
   ```bash
   sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev
+  ```
+- Motores opcionales de TTS para lectura en voz alta:
+  ```bash
+  sudo apt install espeak-ng speech-dispatcher
   ```
 
 ## Primeros Pasos
