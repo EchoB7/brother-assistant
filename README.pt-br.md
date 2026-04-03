@@ -79,9 +79,21 @@ cargo build --release -p brother-shell
 brother-core/    # Lógica de negócio (provedores, agente, config, streaming)
 brother-shell/   # Shell nativa Linux (tao + wry + tray + hotkey)
 linux-cli/       # CLI alternativa (terminal)
+skills/          # Skills locais carregadas em desenvolvimento e instalações portáteis
 src/             # Frontend React (componentes, estilos, tipos)
 scripts/         # Scripts de build
 ```
+
+## Skills
+
+- O Brother agora tem uma base local de skills para ampliar o prompt e especializar tarefas.
+- As skills são carregadas de `skills/` no projeto atual, de um diretório `skills/` ao lado do executável, ou de `~/.config/copilot-assistente/skills/`.
+- Cada skill vive em sua própria pasta e precisa de um `SKILL.md` com `name`, `description` e instruções em Markdown.
+- O manifesto agora aceita `metadata` com um objeto JSON do Brother contendo `version`, `source`, `tools`, `permissions`, `installRequired`, `requiresApproval` e `autoActivate`.
+- Skills que exigem permissões extras ou instalação entram no catálogo, mas não são ativadas automaticamente sem aprovação do usuário.
+- As configurações agora incluem um catálogo de skills com lista local, busca no OpenClaw e instalação com um clique quando a shell nativa oferece suporte.
+- No preview do navegador, a UI usa um fallback embutido para o catálogo, então a busca de skills continua funcionando mesmo antes de reiniciar a shell nativa.
+- As respostas do modo agente agora exibem o identificador da ação executada, como `open_application`, `open_browser_search` ou `web_search`, para facilitar a inspeção do comportamento.
 
 ## Privacidade
 

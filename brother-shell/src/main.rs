@@ -19,6 +19,7 @@ use brother_core::copilot::{
 use brother_core::runtime::{
 	run_chat_request, ChatRuntimeEvent, DEFAULT_AGENT_PLANNER_PROMPT, DEFAULT_SYSTEM_PROMPT,
 };
+use brother_core::skills::{install_openclaw_skill, installed_skill_summaries, search_openclaw_skills};
 use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, hotkey::{Code, HotKey, Modifiers}};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -860,6 +861,36 @@ fn handle_invoke(
 				Err(e) => { send_result::<String>(&proxy, id, Err(e)); return; }
 			};
 			send_result(&proxy, id, read_image_base64(&path));
+		}
+		"list_installed_skills" => {
+			send_result(&proxy, id, Ok(installed_skill_summaries()));
+		}
+		"search_openclaw_skills" => {
+			let query = args
+				.as_ref()
+				.and_then(|payload| payload.get("query"))
+				.and_then(|value| value.as_str())
+				.unwrap_or_default()
+				.to_string();
+			let proxy_clone = proxy.clone();
+			runtime.spawn(async move {
+				let result = search_openclaw_skills(&query).await;
+				send_result(&proxy_clone, id, result);
+			});
+		}
+		"install_openclaw_skill" => {
+			let skill_name: String = match parse_arg(&args, "name") {
+				Ok(v) => v,
+				Err(e) => {
+					send_result::<Value>(&proxy, id, Err(e));
+					return;
+				}
+			};
+			let proxy_clone = proxy.clone();
+			runtime.spawn(async move {
+				let result = install_openclaw_skill(&skill_name).await;
+				send_result(&proxy_clone, id, result);
+			});
 		}
 		"start_copilot_device_flow" => {
 			let proxy_clone = proxy.clone();

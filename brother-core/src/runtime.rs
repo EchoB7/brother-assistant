@@ -14,6 +14,7 @@ use crate::copilot::{
     copilot_model_uses_responses, get_active_copilot_account, github_user_agent,
     request_copilot_session_token, rotate_copilot_account,
 };
+use crate::skills::augment_prompt_with_skills;
 
 const COPILOT_API_URL: &str = "https://api.githubcopilot.com/chat/completions";
 const COPILOT_RESPONSES_URL: &str = "https://api.githubcopilot.com/responses";
@@ -76,9 +77,16 @@ where
         return Ok(false);
     };
 
-    let action = plan_agent_action_with_model(client, config, messages, planner_prompt)
-        .await?
-        .or_else(|| detect_agent_action(&last_user_message.content));
+    let detected_action = detect_agent_action(&last_user_message.content);
+    let planned_action = plan_agent_action_with_model(client, config, messages, planner_prompt).await?;
+
+    let action = match detected_action {
+        Some(crate::agent::AgentAction::OpenBrowserSearch { .. })
+        | Some(crate::agent::AgentAction::OpenApplication { .. })
+        | Some(crate::agent::AgentAction::OpenUrl { .. })
+        | Some(crate::agent::AgentAction::OpenPath { .. }) => detected_action,
+        other => planned_action.or(other),
+    };
 
     let Some(action) = action else {
         return Ok(false);
@@ -301,9 +309,9 @@ where
         if use_responses {
             let user_input = messages
                 .iter()
-                .map(|message| message.content.clone())
+                .map(|message| format!("{}: {}", message.role, message.content))
                 .collect::<Vec<_>>()
-                .join("\n\n");
+                .join("\n");
             let response = client
                 .post(COPILOT_RESPONSES_URL)
                 .header("Authorization", format!("Bearer {}", session_token))
@@ -313,7 +321,7 @@ where
                 .header("Editor-Version", "vscode/1.113.0")
                 .json(&json!({
                     "model": config.model,
-                    "input": user_input,
+                    "input": format!("{}\n\n{}", system_prompt, user_input),
                     "max_output_tokens": 16000,
                 }))
                 .send()
@@ -451,13 +459,16 @@ pub async fn run_chat_request<F>(
 where
     F: FnMut(ChatRuntimeEvent),
 {
-    if maybe_run_agent_action(client, config, messages, planner_prompt, &mut emit).await? {
+    let system_prompt = augment_prompt_with_skills(system_prompt, messages);
+    let planner_prompt = augment_prompt_with_skills(planner_prompt, messages);
+
+    if maybe_run_agent_action(client, config, messages, &planner_prompt, &mut emit).await? {
         return Ok(());
     }
 
     match config.provider.as_str() {
-        "copilot" => stream_copilot(client, config, messages, system_prompt, &mut emit).await,
-        "google" => stream_gemini(client, config, messages, system_prompt, &mut emit).await,
+        "copilot" => stream_copilot(client, config, messages, &system_prompt, &mut emit).await,
+        "google" => stream_gemini(client, config, messages, &system_prompt, &mut emit).await,
         _ => {
             let provider_name = config.provider.clone();
             let attempts = config
@@ -474,7 +485,7 @@ where
                 let token = provider_token(config)?;
                 let body = json!({
                     "model": config.model,
-                    "messages": build_chat_messages(messages, system_prompt),
+                    "messages": build_chat_messages(messages, &system_prompt),
                     "stream": true,
                     "temperature": 0.3,
                 });

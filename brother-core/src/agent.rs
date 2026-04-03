@@ -34,6 +34,32 @@ pub enum AgentAction {
     GenerateImage { prompt: String },
 }
 
+fn agent_action_label(action: &AgentAction) -> &'static str {
+    match action {
+        AgentAction::GetSystemInfo => "get_system_info",
+        AgentAction::CreateSimpleHtmlAndOpen => "create_simple_html_and_open",
+        AgentAction::OpenUrl { .. } => "open_url",
+        AgentAction::OpenPath { .. } => "open_path",
+        AgentAction::SetWallpaper { .. } => "set_wallpaper",
+        AgentAction::DownloadImageAndSetWallpaper { .. } => "download_image_and_set_wallpaper",
+        AgentAction::CreateFile { .. } => "create_file",
+        AgentAction::EditFile { .. } => "edit_file",
+        AgentAction::DeleteFile { .. } => "delete_file",
+        AgentAction::CreateDir { .. } => "create_dir",
+        AgentAction::MoveFile { .. } => "move_file",
+        AgentAction::RenameFile { .. } => "rename_file",
+        AgentAction::ListDir { .. } => "list_dir",
+        AgentAction::OpenApplication { .. } => "open_application",
+        AgentAction::WebSearch { .. } => "web_search",
+        AgentAction::OpenBrowserSearch { .. } => "open_browser_search",
+        AgentAction::GenerateImage { .. } => "generate_image",
+    }
+}
+
+fn with_agent_action_log(action: &AgentAction, message: String) -> String {
+    format!("Modo agente [{}]: {}", agent_action_label(action), message)
+}
+
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct AgentPlan {
     mode: String,
@@ -328,9 +354,59 @@ pub fn detect_absolute_file_path(input: &str, extensions: &[&str]) -> Option<Pat
     })
 }
 
+fn has_search_intent(normalized: &str) -> bool {
+    normalized.contains("pesquis")
+        || normalized.contains("busca")
+        || normalized.contains("search")
+        || normalized.contains("procur")
+}
+
+fn has_open_intent(normalized: &str) -> bool {
+    normalized.contains("abr") || normalized.contains("inici") || normalized.contains("execut")
+}
+
+fn detect_browser_application(normalized: &str) -> Option<&'static str> {
+    const BROWSERS: [(&str, &str); 10] = [
+        ("google chrome", "google-chrome"),
+        ("chrome", "google-chrome"),
+        ("chromium", "chromium"),
+        ("firefox", "firefox"),
+        ("brave browser", "brave-browser"),
+        ("brave", "brave-browser"),
+        ("microsoft edge", "microsoft-edge"),
+        ("edge", "microsoft-edge"),
+        ("opera", "opera"),
+        ("navegador", "firefox"),
+    ];
+
+    BROWSERS
+        .iter()
+        .find_map(|(needle, command)| normalized.contains(needle).then_some(*command))
+}
+
+fn extract_search_query(input: &str) -> Option<String> {
+    let normalized = input.to_lowercase();
+    let markers = ["pesquise por", "pesquise", "procure por", "procure", "busque por", "busque", "search for", "search"];
+
+    for marker in markers {
+        if let Some(index) = normalized.find(marker) {
+            let query = input[index + marker.len()..]
+                .trim()
+                .trim_matches(|c: char| c == ':' || c == ',' || c == '-' || c.is_whitespace())
+                .to_string();
+            if !query.is_empty() {
+                return Some(query);
+            }
+        }
+    }
+
+    None
+}
+
 pub fn detect_agent_action(input: &str) -> Option<AgentAction> {
     let normalized = input.to_lowercase();
     let wants_browser = normalized.contains("navegador") || normalized.contains("browser");
+    let browser_application = detect_browser_application(&normalized);
     let wants_create = normalized.contains("crie") || normalized.contains("criar") || normalized.contains("gera") || normalized.contains("gerar");
     let wants_download = normalized.contains("baixe")
         || normalized.contains("baixar")
@@ -346,14 +422,13 @@ pub fn detect_agent_action(input: &str) -> Option<AgentAction> {
         });
     }
 
-    if wants_create && normalized.contains("html") && wants_browser {
+    if wants_create && normalized.contains("html") && (wants_browser || browser_application.is_some()) {
         return Some(AgentAction::CreateSimpleHtmlAndOpen);
     }
 
-    if wants_browser {
-        // "abra o navegador e pesquise X"
-        if normalized.contains("pesquis") || normalized.contains("busca") || normalized.contains("search") {
-            let query = input.to_string();
+    if wants_browser || browser_application.is_some() {
+        if has_search_intent(&normalized) {
+            let query = extract_search_query(input).unwrap_or_else(|| input.to_string());
             return Some(AgentAction::OpenBrowserSearch { query });
         }
         if let Some(url) = detect_url(input) {
@@ -361,6 +436,13 @@ pub fn detect_agent_action(input: &str) -> Option<AgentAction> {
         }
         if let Some(path) = detect_absolute_file_path(input, &[".html", ".htm"]) {
             return Some(AgentAction::OpenPath { path });
+        }
+        if has_open_intent(&normalized) {
+            if let Some(browser_command) = browser_application {
+                return Some(AgentAction::OpenApplication {
+                    name: browser_command.to_string(),
+                });
+            }
         }
     }
 
@@ -371,8 +453,7 @@ pub fn detect_agent_action(input: &str) -> Option<AgentAction> {
     }
 
     // Detect web search intent
-    if normalized.contains("pesquis") || normalized.contains("busca") || normalized.contains("search")
-       || normalized.contains("procur") {
+    if has_search_intent(&normalized) {
         // If it contains a path, it might be file search - skip
         if !normalized.contains("/") {
             let query = input.to_string();
@@ -906,38 +987,38 @@ async fn fetch_web_search_results(query: &str) -> Result<String, String> {
 
 pub async fn execute_agent_action(action: &AgentAction) -> Result<String, String> {
     match action {
-        AgentAction::GetSystemInfo => Ok(collect_system_info()),
+        AgentAction::GetSystemInfo => Ok(with_agent_action_log(action, collect_system_info())),
         AgentAction::CreateSimpleHtmlAndOpen => {
             let file_path = create_simple_html_file()?;
             open_target(file_path.to_string_lossy().as_ref())?;
-            Ok(format!(
-                "Modo agente: criei uma página HTML simples em {} e abri no navegador.",
+            Ok(with_agent_action_log(action, format!(
+                "criei uma página HTML simples em {} e abri no navegador.",
                 file_path.display()
-            ))
+            )))
         }
         AgentAction::OpenUrl { url } => {
             open_target(url)?;
-            Ok(format!("Modo agente: abri {} no navegador.", url))
+            Ok(with_agent_action_log(action, format!("abri {} no navegador.", url)))
         }
         AgentAction::OpenPath { path } => {
             if !path.exists() {
                 return Err("O arquivo solicitado para abrir no navegador não existe.".into());
             }
             open_target(path.to_string_lossy().as_ref())?;
-            Ok(format!("Modo agente: abri {} no navegador.", path.display()))
+            Ok(with_agent_action_log(action, format!("abri {} no navegador.", path.display())))
         }
         AgentAction::SetWallpaper { path } => {
             set_wallpaper(path)?;
-            Ok(format!("Modo agente: alterei o wallpaper usando a imagem {}.", path.display()))
+            Ok(with_agent_action_log(action, format!("alterei o wallpaper usando a imagem {}.", path.display())))
         }
         AgentAction::DownloadImageAndSetWallpaper { query } => {
             let image_path = download_image_for_wallpaper(query).await?;
             set_wallpaper(&image_path)?;
-            Ok(format!(
-                "Modo agente: baixei uma imagem para '{}' em {} e apliquei como wallpaper.",
+            Ok(with_agent_action_log(action, format!(
+                "baixei uma imagem para '{}' em {} e apliquei como wallpaper.",
                 query,
                 image_path.display()
-            ))
+            )))
         }
         AgentAction::CreateFile { path, content } => {
             // Security: block paths outside home
@@ -946,7 +1027,7 @@ pub async fn execute_agent_action(action: &AgentAction) -> Result<String, String
                 let _ = fs::create_dir_all(parent);
             }
             fs::write(path, content).map_err(|e| format!("Falha ao criar arquivo: {e}"))?;
-            Ok(format!("Modo agente: criei o arquivo {}.", path.display()))
+            Ok(with_agent_action_log(action, format!("criei o arquivo {}.", path.display())))
         }
         AgentAction::EditFile { path, content } => {
             validate_path_safety(path)?;
@@ -954,7 +1035,7 @@ pub async fn execute_agent_action(action: &AgentAction) -> Result<String, String
                 return Err(format!("O arquivo {} não existe.", path.display()));
             }
             fs::write(path, content).map_err(|e| format!("Falha ao editar arquivo: {e}"))?;
-            Ok(format!("Modo agente: editei o arquivo {}.", path.display()))
+            Ok(with_agent_action_log(action, format!("editei o arquivo {}.", path.display())))
         }
         AgentAction::DeleteFile { path } => {
             validate_path_safety(path)?;
@@ -966,12 +1047,12 @@ pub async fn execute_agent_action(action: &AgentAction) -> Result<String, String
             } else {
                 fs::remove_file(path).map_err(|e| format!("Falha ao remover arquivo: {e}"))?;
             }
-            Ok(format!("Modo agente: removi {}.", path.display()))
+            Ok(with_agent_action_log(action, format!("removi {}.", path.display())))
         }
         AgentAction::CreateDir { path } => {
             validate_path_safety(path)?;
             fs::create_dir_all(path).map_err(|e| format!("Falha ao criar diretório: {e}"))?;
-            Ok(format!("Modo agente: criei o diretório {}.", path.display()))
+            Ok(with_agent_action_log(action, format!("criei o diretório {}.", path.display())))
         }
         AgentAction::MoveFile { from, to } => {
             validate_path_safety(from)?;
@@ -983,7 +1064,7 @@ pub async fn execute_agent_action(action: &AgentAction) -> Result<String, String
                 let _ = fs::create_dir_all(parent);
             }
             fs::rename(from, to).map_err(|e| format!("Falha ao mover: {e}"))?;
-            Ok(format!("Modo agente: movi {} para {}.", from.display(), to.display()))
+            Ok(with_agent_action_log(action, format!("movi {} para {}.", from.display(), to.display())))
         }
         AgentAction::RenameFile { from, to } => {
             validate_path_safety(from)?;
@@ -992,7 +1073,7 @@ pub async fn execute_agent_action(action: &AgentAction) -> Result<String, String
                 return Err(format!("O caminho {} não existe.", from.display()));
             }
             fs::rename(from, to).map_err(|e| format!("Falha ao renomear: {e}"))?;
-            Ok(format!("Modo agente: renomeei {} para {}.", from.display(), to.display()))
+            Ok(with_agent_action_log(action, format!("renomeei {} para {}.", from.display(), to.display())))
         }
         AgentAction::ListDir { path } => {
             if !path.exists() || !path.is_dir() {
@@ -1012,21 +1093,21 @@ pub async fn execute_agent_action(action: &AgentAction) -> Result<String, String
             } else {
                 entries.join("\n")
             };
-            Ok(format!("Modo agente: conteúdo de {}:\n\n```\n{}\n```", path.display(), listing))
+            Ok(with_agent_action_log(action, format!("conteúdo de {}:\n\n```\n{}\n```", path.display(), listing)))
         }
         AgentAction::OpenApplication { name } => {
             open_application_by_name(name)?;
-            Ok(format!("Modo agente: abri o aplicativo '{}'.", name))
+            Ok(with_agent_action_log(action, format!("abri o aplicativo '{}'.", name)))
         }
         AgentAction::WebSearch { query } => {
             let search_results = fetch_web_search_results(query).await?;
-            Ok(search_results)
+            Ok(with_agent_action_log(action, search_results))
         }
         AgentAction::OpenBrowserSearch { query } => {
             let encoded = urlencoding::encode(query);
             let url = format!("https://www.google.com/search?q={}", encoded);
             open_target(&url)?;
-            Ok(format!("Modo agente: abri o navegador com a pesquisa '{}'.", query))
+            Ok(with_agent_action_log(action, format!("abri o navegador com a pesquisa '{}'.", query)))
         }
         AgentAction::GenerateImage { prompt } => {
             let encoded = urlencoding::encode(prompt);
@@ -1045,7 +1126,7 @@ pub async fn execute_agent_action(action: &AgentAction) -> Result<String, String
             let file_name = format!("{}_{}.png", sanitized, timestamp);
             let file_path = images_dir.join(&file_name);
             fs::write(&file_path, &bytes).map_err(|e| format!("Falha ao salvar imagem: {e}"))?;
-            Ok(format!("Modo agente: gerei uma imagem para '{}' e salvei em {}.\n\n![{}]({})", prompt, file_path.display(), prompt, file_path.display()))
+            Ok(with_agent_action_log(action, format!("gerei uma imagem para '{}' e salvei em {}.\n\n![{}]({})", prompt, file_path.display(), prompt, file_path.display())))
         }
     }
 }

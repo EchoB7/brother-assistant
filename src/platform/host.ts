@@ -1,4 +1,4 @@
-import type { DeviceFlowStart, SettingsState } from "../types";
+import type { DeviceFlowStart, SettingsState, SkillCatalogEntry } from "../types";
 
 type EventHandler<T> = (payload: T) => void;
 type Unlisten = () => void;
@@ -19,6 +19,247 @@ declare global {
 
 const SETTINGS_STORAGE_KEY = "brother.settings.v1";
 const localListeners = new Map<string, Set<EventHandler<unknown>>>();
+const OPENCLAW_SKILLS_API = "https://api.github.com/repos/openclaw/openclaw/contents/skills";
+const MAX_PREVIEW_SKILL_RESULTS = 24;
+const PREVIEW_LOCAL_SKILL_FILES = (
+  import.meta as ImportMeta & {
+    glob: (pattern: string, options: Record<string, unknown>) => Record<string, string>;
+  }
+).glob("../../skills/*/SKILL.md", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
+const SKILL_ALIASES: Record<string, string> = {
+  browser: "web",
+  browse: "web",
+  browsing: "web",
+  web: "web",
+  website: "web",
+  webpage: "web",
+  site: "web",
+  sites: "web",
+  page: "web",
+  pages: "web",
+  url: "web",
+  urls: "web",
+  http: "web",
+  https: "web",
+  chrome: "web",
+  chromium: "web",
+  navegador: "web",
+  search: "buscar",
+  searching: "buscar",
+  find: "buscar",
+  lookup: "buscar",
+  query: "buscar",
+};
+
+const SKILL_STOPWORDS = new Set([
+  "the", "and", "para", "com", "que", "uma", "por", "from", "with", "this", "that", "then", "else",
+]);
+
+const WEB_HINTS = ["web", "url", "html", "page", "site", "browser", "canvas"];
+
+interface GithubSkillDirEntry {
+  name: string;
+  type: string;
+}
+
+function tokenizeSkillText(text: string) {
+  return new Set(
+    text
+      .toLowerCase()
+      .split(/[^a-z0-9]+/i)
+      .filter((token) => token.length >= 3 && !SKILL_STOPWORDS.has(token))
+      .map((token) => SKILL_ALIASES[token] ?? (token.endsWith("s") && token.length > 4 ? token.slice(0, -1) : token))
+  );
+}
+
+function parsePreviewSkillMarkdown(
+  markdown: string,
+  fallbackName: string,
+  options?: {
+    source?: string;
+    repo?: string | null;
+    remotePath?: string | null;
+    filePath?: string | null;
+    installed?: boolean;
+  }
+): SkillCatalogEntry | null {
+  const trimmed = markdown.trim();
+  let frontmatter = "";
+  let body = trimmed;
+
+  if (trimmed.startsWith("---\n")) {
+    const remainder = trimmed.slice(4);
+    const frontmatterEnd = remainder.indexOf("\n---\n");
+    if (frontmatterEnd >= 0) {
+      frontmatter = remainder.slice(0, frontmatterEnd);
+      body = remainder.slice(frontmatterEnd + 5).trim();
+    }
+  }
+
+  let name = fallbackName;
+  let description = "";
+  const keywords: string[] = [];
+
+  for (const line of frontmatter.split("\n")) {
+    const separator = line.indexOf(":");
+    if (separator < 0) continue;
+    const key = line.slice(0, separator).trim();
+    const value = line.slice(separator + 1).trim().replace(/^['"]|['"]$/g, "");
+    if (key === "name" && value) {
+      name = value;
+    } else if (key === "description" && value) {
+      description = value;
+    } else if ((key === "keywords" || key === "triggers") && value) {
+      keywords.push(...value.split(",").map((item) => item.trim()).filter(Boolean));
+    }
+  }
+
+  if (!description) {
+    for (const line of body.split("\n")) {
+      const candidate = line.trim();
+      if (candidate && !candidate.startsWith("#")) {
+        description = candidate;
+        break;
+      }
+    }
+  }
+
+  if (!name || !description) {
+    return null;
+  }
+
+  return {
+    name,
+    description,
+    version: "1",
+    source: options?.source ?? "openclaw",
+    repo: options?.repo ?? "openclaw/openclaw",
+    remote_path: options?.remotePath ?? `skills/${fallbackName}`,
+    file_path: options?.filePath ?? null,
+    keywords,
+    tools: [],
+    permissions: [],
+    install_required: false,
+    requires_approval: false,
+    auto_activate: true,
+    installed: options?.installed ?? false,
+  };
+}
+
+function listPreviewInstalledSkills() {
+  return Object.entries(PREVIEW_LOCAL_SKILL_FILES)
+    .map(([filePath, markdown]) => {
+      const match = filePath.match(/skills\/([^/]+)\/SKILL\.md$/);
+      const fallbackName = match?.[1] ?? "skill-local";
+      return parsePreviewSkillMarkdown(markdown, fallbackName, {
+        source: "workspace",
+        repo: null,
+        remotePath: null,
+        filePath,
+        installed: true,
+      });
+    })
+    .filter((skill): skill is SkillCatalogEntry => Boolean(skill))
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function scorePreviewSkill(skill: SkillCatalogEntry, markdown: string, query: string) {
+  const trimmed = query.trim();
+  if (!trimmed) return 1;
+
+  const lowered = trimmed.toLowerCase();
+  const metadataContext = `${skill.name} ${skill.description} ${skill.keywords.join(" ")}`;
+  const remoteContext = `${metadataContext} ${markdown}`;
+  const queryTokens = tokenizeSkillText(trimmed);
+  const metadataTokens = tokenizeSkillText(metadataContext);
+  const remoteTokens = tokenizeSkillText(remoteContext);
+
+  let score = 0;
+  for (const token of queryTokens) {
+    if (remoteTokens.has(token)) score += 1;
+    if (metadataTokens.has(token)) score += 1;
+  }
+
+  const containsMatch =
+    skill.name.toLowerCase().includes(lowered) ||
+    skill.description.toLowerCase().includes(lowered) ||
+    markdown.toLowerCase().includes(lowered) ||
+    skill.keywords.some((keyword) => keyword.toLowerCase().includes(lowered));
+
+  const webIntent =
+    queryTokens.has("web") ||
+    lowered.includes("browser") ||
+    lowered.includes("chrome") ||
+    lowered.includes("chromium") ||
+    lowered.includes("navegador") ||
+    lowered.includes("site") ||
+    lowered.includes("url");
+
+  if (webIntent) {
+    let metadataHintCount = 0;
+    let remoteHintCount = 0;
+    for (const hint of WEB_HINTS) {
+      if (metadataTokens.has(hint)) metadataHintCount += 1;
+      if (remoteTokens.has(hint)) remoteHintCount += 1;
+    }
+
+    if (metadataHintCount > 0) {
+      score += 4 + metadataHintCount;
+    } else if (remoteHintCount > 0) {
+      score += 1;
+    } else {
+      return 0;
+    }
+
+    if (skill.name.includes("url") || skill.name.includes("canvas")) {
+      score += 3;
+    }
+  }
+
+  if (containsMatch) {
+    score += 3;
+  }
+
+  return score;
+}
+
+async function searchPreviewOpenClawSkills(query: string) {
+  const response = await fetch(OPENCLAW_SKILLS_API);
+  if (!response.ok) {
+    throw new Error("Nao foi possivel consultar o catalogo do OpenClaw no preview web.");
+  }
+
+  const entries = (await response.json()) as GithubSkillDirEntry[];
+  const skills: Array<{ score: number; skill: SkillCatalogEntry }> = [];
+
+  for (const entry of entries) {
+    if (entry.type !== "dir") continue;
+
+    try {
+      const markdownResponse = await fetch(
+        `https://raw.githubusercontent.com/openclaw/openclaw/main/skills/${entry.name}/SKILL.md`
+      );
+      if (!markdownResponse.ok) continue;
+      const markdown = await markdownResponse.text();
+      const skill = parsePreviewSkillMarkdown(markdown, entry.name);
+      if (!skill) continue;
+      const score = scorePreviewSkill(skill, markdown, query);
+      if (query.trim() === "" || score > 0) {
+        skills.push({ score, skill });
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  skills.sort((left, right) => right.score - left.score || left.skill.name.localeCompare(right.skill.name));
+  return skills.slice(0, MAX_PREVIEW_SKILL_RESULTS).map((item) => item.skill);
+}
 
 function defaultSettingsState(): SettingsState {
   return {
@@ -313,6 +554,12 @@ async function invokeLocal<T>(command: string, args?: Record<string, unknown>): 
       window.setTimeout(() => emitLocalEvent("chat-stream-done", null), 80 * (chunks.length + 1));
       return undefined as T;
     }
+    case "list_installed_skills":
+      return listPreviewInstalledSkills() as T;
+    case "search_openclaw_skills":
+      return (await searchPreviewOpenClawSkills(String(args?.query ?? ""))) as T;
+    case "install_openclaw_skill":
+      throw new Error("Instalação de skills só está disponível no host nativo.");
     default:
       throw new Error(`Comando nao suportado fora do host nativo: ${command}`);
   }
@@ -337,10 +584,30 @@ function getTauriWindow() {
   return tauriWindowPromise;
 }
 
+function shouldFallbackToLocal(command: string, error: unknown) {
+  if (!["list_installed_skills", "search_openclaw_skills"].includes(command)) {
+    return false;
+  }
+
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return message.includes("comando não suportado") || message.includes("comando nao suportado");
+}
+
 export async function invokeCommand<T>(command: string, args?: Record<string, unknown>) {
   const customHost = detectCustomHost();
   if (customHost?.invoke) {
-    return customHost.invoke<T>(command, args);
+    try {
+      return await customHost.invoke<T>(command, args);
+    } catch (error) {
+      if (shouldFallbackToLocal(command, error)) {
+        return invokeLocal<T>(command, args);
+      }
+      throw error;
+    }
   }
 
   if (isTauriRuntime()) {

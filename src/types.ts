@@ -60,3 +60,20 @@ export interface DeviceFlowStart {
   interval: number;
   expires_in: number;
 }
+
+export interface SkillCatalogEntry {
+  name: string;
+  description: string;
+  version: string;
+  source: string;
+  repo: string | null;
+  remote_path: string | null;
+  file_path: string | null;
+  keywords: string[];
+  tools: string[];
+  permissions: string[];
+  install_required: boolean;
+  requires_approval: boolean;
+  auto_activate: boolean;
+  installed: boolean;
+}

@@ -3,3 +3,4 @@ pub mod chat;
 pub mod config;
 pub mod copilot;
 pub mod runtime;
+pub mod skills;
